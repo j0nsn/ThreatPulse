@@ -1,0 +1,11 @@
+{
+  "admin_username": "YOUR_ADMIN_USERNAME",
+  "password_salt": "YOUR_RANDOM_SALT_STRING",
+  "password_hash": "GENERATED_BY_SETUP_SCRIPT",
+  "jwt_expire_hours": 24,
+  "rate_limit": {
+    "max_attempts": 5,
+    "window_seconds": 300,
+    "lockout_seconds": 900
+  }
+}

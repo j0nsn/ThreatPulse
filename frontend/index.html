@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>安全情报聚合平台 - ThreatPulse</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/remixicon/4.2.0/remixicon.min.css">
+    <link rel="stylesheet" href="style.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: {
+                            900: '#0a0e17',
+                            800: '#0f1520',
+                            700: '#151d2e',
+                            600: '#1a2438',
+                            500: '#243049',
+                            400: '#2d3b56',
+                        },
+                        accent: {
+                            blue: '#3b82f6',
+                            cyan: '#06b6d4',
+                            green: '#10b981',
+                            red: '#ef4444',
+                            orange: '#f59e0b',
+                            purple: '#8b5cf6',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-dark-900 text-gray-200 min-h-screen antialiased">
+    <!-- 新数据提示横幅 -->
+    <div id="newDataBanner" class="fixed top-0 left-0 right-0 z-50 transform -translate-y-full transition-transform duration-500">
+        <div class="bg-gradient-to-r from-accent-blue/90 to-accent-cyan/90 backdrop-blur-md text-white text-center py-2.5 px-4 text-sm font-medium cursor-pointer shadow-lg shadow-accent-blue/20">
+            <i class="ri-notification-3-line mr-1 animate-pulse"></i>
+            <span id="newDataText">发现 3 条新情报，点击刷新查看</span>
+        </div>
+    </div>
+
+    <!-- 顶部导航栏 -->
+    <header class="sticky top-0 z-40 bg-dark-800/80 backdrop-blur-xl border-b border-white/5">
+        <div class="max-w-[1920px] mx-auto px-4 lg:px-6">
+            <div class="flex items-center justify-between h-14">
+                <!-- Logo -->
+                <div class="flex items-center gap-3 shrink-0">
+                    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-accent-blue to-accent-cyan flex items-center justify-center">
+                        <i class="ri-shield-flash-line text-white text-lg"></i>
+                    </div>
+                    <h1 class="text-lg font-bold bg-gradient-to-r from-accent-blue to-accent-cyan bg-clip-text text-transparent hidden sm:block">ThreatPulse</h1>
+                </div>
+
+                <!-- 搜索栏 -->
+                <div class="flex-1 max-w-2xl mx-4 lg:mx-8">
+                    <div class="relative group">
+                        <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-accent-blue transition-colors"></i>
+                        <input id="searchInput" type="text" placeholder="搜索漏洞、攻击事件、威胁情报..." 
+                            class="w-full bg-dark-700 border border-white/5 rounded-lg pl-10 pr-4 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-accent-blue/50 focus:ring-1 focus:ring-accent-blue/30 transition-all">
+                        <kbd class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-500 bg-dark-600 px-1.5 py-0.5 rounded border border-white/10 hidden lg:inline-block">/</kbd>
+                    </div>
+                </div>
+
+                <!-- 右侧操作 -->
+                <div class="flex items-center gap-2 shrink-0">
+                    <!-- 时间筛选 -->
+                    <div class="relative" id="timeFilterWrap">
+                        <button id="timeFilterBtn" class="flex items-center gap-1.5 bg-dark-700 border border-white/5 rounded-lg px-3 py-2 text-sm text-gray-400 hover:text-gray-200 hover:border-white/10 transition-all">
+                            <i class="ri-time-line"></i>
+                            <span id="timeFilterLabel">全部</span>
+                            <i class="ri-arrow-down-s-line text-xs"></i>
+                        </button>
+                        <div id="timeFilterDropdown" class="absolute right-0 top-full mt-1 bg-dark-700 border border-white/10 rounded-lg shadow-xl shadow-black/30 py-1 w-32 hidden z-50">
+                            <div class="time-option px-3 py-1.5 text-sm text-gray-400 hover:text-white hover:bg-white/5 cursor-pointer transition-colors" data-value="all">全部</div>
+                            <div class="time-option px-3 py-1.5 text-sm text-gray-400 hover:text-white hover:bg-white/5 cursor-pointer transition-colors" data-value="today">今日</div>
+                            <div class="time-option px-3 py-1.5 text-sm text-gray-400 hover:text-white hover:bg-white/5 cursor-pointer transition-colors" data-value="3days">近3天</div>
+                            <div class="time-option px-3 py-1.5 text-sm text-gray-400 hover:text-white hover:bg-white/5 cursor-pointer transition-colors" data-value="week">本周</div>
+                            <div class="time-option px-3 py-1.5 text-sm text-gray-400 hover:text-white hover:bg-white/5 cursor-pointer transition-colors" data-value="month">本月</div>
+                        </div>
+                    </div>
+                    <!-- 刷新按钮 -->
+                    <button id="refreshBtn" class="flex items-center gap-1.5 bg-dark-700 border border-white/5 rounded-lg px-3 py-2 text-sm text-gray-400 hover:text-accent-blue hover:border-accent-blue/30 transition-all" title="刷新数据">
+                        <i class="ri-refresh-line" id="refreshIcon"></i>
+                        <span class="hidden sm:inline">刷新</span>
+                    </button>
+                    <!-- 自动刷新开关 -->
+                    <div class="flex items-center gap-1.5 bg-dark-700 border border-white/5 rounded-lg px-3 py-2">
+                        <span class="text-xs text-gray-500 hidden sm:inline">自动</span>
+                        <button id="autoRefreshToggle" class="relative w-8 h-4 rounded-full bg-dark-500 transition-colors" title="自动刷新">
+                            <span id="autoRefreshDot" class="absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-gray-500 transition-all"></span>
+                        </button>
+                    </div>
+                    <!-- 用户 & 登出 -->
+                    <div class="flex items-center gap-2 ml-2 pl-2 border-l border-white/5">
+                        <span class="text-xs text-gray-500 hidden sm:inline" id="currentUser"></span>
+                        <button id="logoutBtn" class="flex items-center gap-1 bg-dark-700 border border-white/5 rounded-lg px-2.5 py-2 text-xs text-gray-500 hover:text-red-400 hover:border-red-500/30 transition-all" title="退出登录">
+                            <i class="ri-logout-box-r-line text-sm"></i>
+                            <span class="hidden sm:inline">退出</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主内容区 -->
+    <main class="max-w-[1920px] mx-auto px-4 lg:px-6 py-4">
+        <!-- 今日态势总结 -->
+        <section id="summarySection" class="mb-4">
+            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+            </div>
+            <!-- 自动摘要 -->
+            <div class="mt-3 bg-dark-800 border border-white/5 rounded-xl p-4 relative overflow-hidden">
+                <div class="absolute inset-0 bg-gradient-to-r from-accent-blue/5 to-accent-purple/5 pointer-events-none"></div>
+                <div class="relative flex items-start gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-accent-blue/10 flex items-center justify-center shrink-0 mt-0.5">
+                        <i class="ri-robot-2-line text-accent-blue"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="text-sm font-medium text-gray-300">AI 态势摘要</span>
+                            <span class="text-[10px] bg-accent-blue/10 text-accent-blue px-1.5 py-0.5 rounded">自动生成</span>
+                            <span id="summaryTime" class="text-[10px] text-gray-600">更新于 --:--</span>
+                        </div>
+                        <p id="summaryText" class="text-sm text-gray-400 leading-relaxed"></p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 三栏布局 -->
+        <div class="flex gap-4">
+            <!-- 左侧分类导航 -->
+            <aside id="leftSidebar" class="w-48 shrink-0 hidden lg:block">
+                <div class="sticky top-[72px]">
+                    <div class="bg-dark-800 border border-white/5 rounded-xl overflow-hidden">
+                        <div class="px-3 py-2.5 border-b border-white/5">
+                            <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">情报分类</span>
+                        </div>
+                        <nav id="categoryNav" class="py-1"></nav>
+                    </div>
+
+                    <!-- 热点攻击榜 -->
+                    <div class="mt-3 bg-dark-800 border border-white/5 rounded-xl overflow-hidden">
+                        <div class="px-3 py-2.5 border-b border-white/5 flex items-center justify-between">
+                            <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">🔥 热点攻击</span>
+                            <span class="text-[10px] text-gray-600">按热度排序</span>
+                        </div>
+                        <div id="hotAttackList" class="py-1"></div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- 中间情报流 -->
+            <div class="flex-1 min-w-0">
+                <!-- 情报流标题栏 -->
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-3">
+                        <h2 class="text-sm font-semibold text-gray-300">情报流</h2>
+                        <span id="intelCount" class="text-[10px] bg-dark-600 text-gray-500 px-2 py-0.5 rounded-full">0 条</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button class="sort-btn active text-xs text-gray-400 hover:text-white bg-dark-700 px-2.5 py-1 rounded-md transition-colors" data-sort="latest">最新</button>
+                        <button class="sort-btn text-xs text-gray-400 hover:text-white bg-dark-700 px-2.5 py-1 rounded-md transition-colors" data-sort="hot">最热</button>
+                        <button class="sort-btn text-xs text-gray-400 hover:text-white bg-dark-700 px-2.5 py-1 rounded-md transition-colors" data-sort="critical">高危</button>
+                    </div>
+                </div>
+
+                <!-- 🆕 严重等级筛选栏 -->
+                <div id="severityFilterBar" class="flex items-center gap-2 mb-3 flex-wrap">
+                    <span class="text-[11px] text-gray-500 mr-1">等级筛选:</span>
+                    <button class="severity-filter-btn active" data-severity="all">
+                        <i class="ri-list-check-2 mr-0.5"></i>全部
+                    </button>
+                    <button class="severity-filter-btn severity-filter-critical" data-severity="critical">
+                        <span class="severity-dot bg-red-500"></span>严重
+                    </button>
+                    <button class="severity-filter-btn severity-filter-high" data-severity="high">
+                        <span class="severity-dot bg-amber-500"></span>高危
+                    </button>
+                    <button class="severity-filter-btn severity-filter-medium" data-severity="medium">
+                        <span class="severity-dot bg-blue-500"></span>中危
+                    </button>
+                    <button class="severity-filter-btn severity-filter-low" data-severity="low">
+                        <span class="severity-dot bg-emerald-500"></span>低危
+                    </button>
+                </div>
+
+                <div id="intelFeed" class="space-y-3"></div>
+
+                <div class="mt-4 text-center">
+                    <button id="loadMoreBtn" class="bg-dark-700 border border-white/5 rounded-lg px-6 py-2 text-sm text-gray-400 hover:text-white hover:border-white/10 transition-all">
+                        <i class="ri-arrow-down-line mr-1"></i>加载更多情报
+                    </button>
+                </div>
+            </div>
+
+            <!-- 右侧面板 -->
+            <aside id="rightSidebar" class="w-64 shrink-0 hidden xl:block">
+                <div class="sticky top-[72px] space-y-3">
+                    <div class="bg-dark-800 border border-white/5 rounded-xl overflow-hidden">
+                        <div class="px-3 py-2.5 border-b border-white/5">
+                            <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">热门标签</span>
+                        </div>
+                        <div id="tagCloud" class="p-3 flex flex-wrap gap-1.5"></div>
+                    </div>
+
+                    <div class="bg-dark-800 border border-white/5 rounded-xl overflow-hidden">
+                        <div class="px-3 py-2.5 border-b border-white/5">
+                            <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">📈 关键词趋势</span>
+                        </div>
+                        <div id="keywordTrends" class="p-3 space-y-2.5"></div>
+                    </div>
+
+                    <div class="bg-dark-800 border border-white/5 rounded-xl overflow-hidden">
+                        <div class="px-3 py-2.5 border-b border-white/5">
+                            <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">威胁等级分布</span>
+                        </div>
+                        <div id="threatLevelChart" class="p-3"></div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </main>
+
+    <!-- 情报详情弹窗 -->
+    <div id="detailModal" class="fixed inset-0 z-50 hidden">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" id="modalOverlay"></div>
+        <div class="absolute inset-y-0 right-0 w-full max-w-2xl bg-dark-800 border-l border-white/5 shadow-2xl transform translate-x-full transition-transform duration-300" id="modalPanel">
+            <div class="h-full flex flex-col">
+                <div class="flex items-center justify-between px-5 py-4 border-b border-white/5">
+                    <h3 id="modalTitle" class="text-base font-semibold text-gray-200 truncate pr-4"></h3>
+                    <button id="modalClose" class="w-8 h-8 rounded-lg bg-dark-700 flex items-center justify-center text-gray-400 hover:text-white transition-colors">
+                        <i class="ri-close-line text-lg"></i>
+                    </button>
+                </div>
+                <div id="modalBody" class="flex-1 overflow-y-auto px-5 py-4"></div>
+                <div class="px-5 py-3 border-t border-white/5 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span id="modalSource" class="text-xs text-gray-500"></span>
+                    </div>
+                    <a id="modalLink" href="#" target="_blank" class="flex items-center gap-1 text-sm text-accent-blue hover:text-accent-cyan transition-colors">
+                        <span>查看原文</span>
+                        <i class="ri-external-link-line"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="mt-8 border-t border-white/5 py-6">
+        <div class="max-w-[1920px] mx-auto px-4 lg:px-6 text-center">
+            <p class="text-xs text-gray-600 mb-2">ThreatPulse 安全情报聚合平台 · 数据来源于公开威胁情报</p>
+        </div>
+    </footer>
+
+    <script type="module" src="main.js"></script>
+</body>
+</html>

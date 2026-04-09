@@ -1,0 +1,121 @@
+twitter:
+  # custome 直接搜索；keyword1 × keyword2 笛卡尔积拼接搜索
+  custome:
+    # --- DDoS 攻击相关 ---
+    - DDoS attack
+    - DDoS mitigation
+    - botnet DDoS
+    - DDoS AI infrastructure
+    - DDoS LLM API
+    - volumetric attack
+    - layer 7 DDoS
+    - API abuse attack
+    # --- Agent 新技术 ---
+    - AI agent framework
+    - autonomous agent
+    - multi-agent system
+    - agent tool use
+    - MCP protocol AI
+    - LLM agent planning
+    - agentic workflow
+    - computer use agent
+    - browser use agent
+    # --- 大模型新技术 ---
+    - GPT-5
+    - Claude 4
+    - Gemini 2.5
+    - LLM reasoning
+    - chain of thought
+    - multimodal LLM
+    - open source LLM
+    - LLM fine-tuning
+    - RAG retrieval augmented
+    - mixture of experts
+    - long context LLM
+    - LLM benchmark
+  keyword1:
+    - DDoS
+    - OpenAI
+    - Anthropic
+    - deepseek
+    - AI agent
+    - LLM
+  keyword2:
+    - attack
+    - new release
+    - breakthrough
+    - open source
+
+reddit:
+  custome:
+    # --- DDoS 攻击相关 ---
+    - DDoS attack 2025 2026
+    - DDoS AI service
+    - botnet attack
+    - API DDoS protection
+    # --- Agent 新技术 ---
+    - AI agent framework
+    - autonomous agent LLM
+    - multi-agent collaboration
+    - MCP model context protocol
+    - agentic AI
+    # --- 大模型新技术 ---
+    - LLM breakthrough
+    - GPT-5 release
+    - open source LLM new
+    - RAG advanced
+    - LLM reasoning chain of thought
+  keyword1:
+    - DDoS
+    - AI agent
+    - LLM
+    - OpenAI
+  keyword2:
+    - attack
+    - new model
+    - breakthrough
+    - open source
+
+weibo:
+  custome:
+    # --- DDoS 攻击相关 ---
+    - DDoS 攻击
+    - DDoS 大模型
+    - 网络攻击 AI
+    - 拒绝服务攻击
+    # --- Agent 新技术 ---
+    - AI Agent 智能体
+    - 多智能体协作
+    - 大模型 Agent
+    - 智能体 工具调用
+    - MCP协议
+    # --- 大模型新技术 ---
+    - 大模型 新发布
+    - 大模型 开源
+    - 大模型 推理
+    - RAG 检索增强
+    - 多模态大模型
+  keyword1:
+    - DDoS
+    - deepseek
+    - 大模型
+    - AI Agent
+    - 智能体
+  keyword2:
+    - 攻击
+    - 新发布
+    - 开源
+    - 突破
+
+news:
+  keyword1:
+    - DDoS attack AI
+    - DDoS LLM service
+    - AI agent new framework
+    - autonomous AI agent
+    - LLM breakthrough
+    - large language model new
+    - GPT-5
+    - open source LLM
+    - multi-agent system
+    - agentic AI
