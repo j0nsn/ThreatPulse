@@ -1,4 +1,3 @@
-import os
 """
 GitHub 安全情报爬虫 - ThreatPulse 安全情报聚合平台
 从 GitHub 采集 AI Agent/LLM/DDoS/渗透测试/Web防护 相关的安全情报
@@ -8,6 +7,7 @@ GitHub 安全情报爬虫 - ThreatPulse 安全情报聚合平台
   2. GitHub Security Advisories - 官方安全公告 (CVE/GHSA)
 """
 
+import os
 import re
 import json
 import time

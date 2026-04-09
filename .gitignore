@@ -28,4 +28,6 @@ Thumbs.db
 # 环境变量和额外日志
 .env
 github_cron.log
+multi_cron.log
 backfill.log
+freebuf_articles.json
