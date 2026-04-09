@@ -344,3 +344,112 @@ export function renderSkeletons(container, count) {
     `).join('');
     container.innerHTML = skeletons;
 }
+
+
+/**
+ * 🆕 渲染 GitHub 热门项目卡片
+ */
+export function renderGithubTrending(container, repos, period) {
+    if (!repos || repos.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-6">
+                <i class="ri-github-line text-2xl text-gray-600 mb-2 block"></i>
+                <p class="text-xs text-gray-500">暂无热门项目数据</p>
+            </div>`;
+        return;
+    }
+
+    const langColors = {
+        'Python': '#3572A5', 'JavaScript': '#f1e05a', 'TypeScript': '#3178c6',
+        'Rust': '#dea584', 'Go': '#00ADD8', 'Java': '#b07219', 'C++': '#f34b7d',
+        'C': '#555555', 'Jupyter Notebook': '#DA5B0B', 'Shell': '#89e051',
+        'Ruby': '#701516', 'Kotlin': '#A97BFF', 'Swift': '#F05138',
+    };
+
+    container.innerHTML = repos.map((repo, i) => {
+        const langColor = langColors[repo.language] || '#6b7280';
+        const desc = repo.description_cn || repo.description || '';
+        const topics = (repo.topics || []).slice(0, 3);
+        const rankClass = i < 3 ? ['text-red-400 bg-red-500/15', 'text-orange-400 bg-orange-500/15', 'text-yellow-400 bg-yellow-500/15'][i] : 'text-gray-500 bg-dark-600';
+
+        return `
+        <div class="github-trending-item group" data-url="${repo.url}">
+            <div class="flex items-start gap-2.5">
+                <span class="w-5 h-5 rounded text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5 ${rankClass}">${i + 1}</span>
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-1.5 mb-1">
+                        <img src="${repo.avatar_url}" class="w-4 h-4 rounded-full" alt="" onerror="this.style.display='none'">
+                        <a href="${repo.url}" target="_blank" rel="noopener" class="text-xs font-medium text-accent-blue hover:text-accent-cyan transition-colors truncate">${repo.repo_full_name}</a>
+                    </div>
+                    <p class="text-[11px] text-gray-500 leading-relaxed mb-1.5 line-clamp-2">${desc}</p>
+                    <div class="flex items-center gap-3 text-[10px] text-gray-600">
+                        ${repo.language ? `<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full inline-block" style="background:${langColor}"></span>${repo.language}</span>` : ''}
+                        <span class="flex items-center gap-0.5"><i class="ri-star-line text-yellow-500/70"></i>${formatNumber(repo.stars)}</span>
+                        <span class="flex items-center gap-0.5"><i class="ri-git-fork-line"></i>${formatNumber(repo.forks)}</span>
+                    </div>
+                    ${topics.length > 0 ? `
+                    <div class="flex flex-wrap gap-1 mt-1.5">
+                        ${topics.map(t => `<span class="text-[9px] px-1.5 py-0.5 rounded bg-accent-blue/8 text-accent-blue/60 border border-accent-blue/10">${t}</span>`).join('')}
+                    </div>` : ''}
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+
+/**
+ * 🆕 渲染热点情报聚合
+ */
+export function renderHotTopics(container, topics) {
+    if (!topics || topics.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-6">
+                <i class="ri-fire-line text-2xl text-gray-600 mb-2 block"></i>
+                <p class="text-xs text-gray-500">暂无热点情报数据</p>
+            </div>`;
+        return;
+    }
+
+    const severityColors = {
+        critical: 'text-red-400 bg-red-500/10',
+        high: 'text-amber-400 bg-amber-500/10',
+        medium: 'text-blue-400 bg-blue-500/10',
+        low: 'text-emerald-400 bg-emerald-500/10',
+        info: 'text-gray-400 bg-gray-500/10',
+    };
+    const severityLabels = { critical: '严重', high: '高危', medium: '中危', low: '低危', info: '信息' };
+    const categoryLabels = { ddos: 'DDoS', agent: 'AI Agent', llm: '大模型', vuln: '漏洞', malware: '恶意软件', general: '综合', pentest: '渗透', webdef: 'Web防护' };
+
+    container.innerHTML = topics.map((topic, i) => {
+        const rankClass = i < 3 ? ['text-red-400 bg-red-500/15', 'text-orange-400 bg-orange-500/15', 'text-yellow-400 bg-yellow-500/15'][i] : 'text-gray-500 bg-dark-600';
+        const sevClass = severityColors[topic.severity] || severityColors.info;
+
+        return `
+        <div class="hot-topic-item group">
+            <div class="flex items-start gap-2.5">
+                <span class="w-5 h-5 rounded text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5 ${rankClass}">${i + 1}</span>
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-1.5 mb-1 flex-wrap">
+                        <span class="text-[9px] px-1.5 py-0.5 rounded ${sevClass}">${severityLabels[topic.severity] || topic.severity}</span>
+                        <span class="text-[9px] text-gray-600 bg-dark-600 px-1.5 py-0.5 rounded">${categoryLabels[topic.category] || topic.category}</span>
+                        ${topic.count > 1 ? `<span class="text-[9px] text-accent-cyan bg-accent-cyan/10 px-1.5 py-0.5 rounded font-medium">${topic.count}篇相关</span>` : ''}
+                    </div>
+                    <p class="text-xs text-gray-300 leading-relaxed mb-1 line-clamp-2 group-hover:text-white transition-colors">${topic.summary_cn}</p>
+                    <div class="flex items-center gap-3 text-[10px] text-gray-600">
+                        <span class="flex items-center gap-0.5"><i class="ri-fire-line text-orange-500/60"></i>${topic.hot_score}</span>
+                        <span class="flex items-center gap-0.5"><i class="ri-database-2-line"></i>${topic.source_count}源</span>
+                        ${topic.sources ? `<span class="truncate max-w-[120px]">${topic.sources.slice(0, 2).join(' · ')}</span>` : ''}
+                    </div>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+
+function formatNumber(num) {
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+    if (num >= 1000) return (num / 1000).toFixed(1) + 'k';
+    return num.toString();
+}

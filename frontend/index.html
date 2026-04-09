@@ -133,6 +133,43 @@
             </div>
         </section>
 
+        <!-- 🆕 GitHub 热门项目 + 热点情报聚合 -->
+        <section class="mb-4">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <!-- GitHub 热门 Agent/大模型项目 -->
+                <div class="bg-dark-800 border border-white/5 rounded-xl overflow-hidden">
+                    <div class="px-4 py-3 border-b border-white/5 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <i class="ri-github-line text-gray-300"></i>
+                            <span class="text-sm font-semibold text-gray-300">GitHub 热门项目</span>
+                            <span class="text-[10px] bg-accent-purple/10 text-accent-purple px-1.5 py-0.5 rounded">Agent / 大模型</span>
+                        </div>
+                        <div class="flex items-center gap-1" id="trendingPeriodBtns">
+                            <button class="trending-period-btn active text-[10px] px-2 py-0.5 rounded transition-colors" data-period="daily">日榜</button>
+                            <button class="trending-period-btn text-[10px] px-2 py-0.5 rounded transition-colors" data-period="weekly">周榜</button>
+                        </div>
+                    </div>
+                    <div id="githubTrendingList" class="p-3 max-h-[480px] overflow-y-auto"></div>
+                </div>
+
+                <!-- 热点情报聚合 -->
+                <div class="bg-dark-800 border border-white/5 rounded-xl overflow-hidden">
+                    <div class="px-4 py-3 border-b border-white/5 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <i class="ri-fire-line text-orange-400"></i>
+                            <span class="text-sm font-semibold text-gray-300">热点情报 Top10</span>
+                            <span class="text-[10px] bg-orange-500/10 text-orange-400 px-1.5 py-0.5 rounded">AI 聚合</span>
+                        </div>
+                        <div class="flex items-center gap-1" id="hotTopicsPeriodBtns">
+                            <button class="hot-topics-period-btn active text-[10px] px-2 py-0.5 rounded transition-colors" data-range="daily">今日</button>
+                            <button class="hot-topics-period-btn text-[10px] px-2 py-0.5 rounded transition-colors" data-range="weekly">本周</button>
+                        </div>
+                    </div>
+                    <div id="hotTopicsList" class="p-3 max-h-[480px] overflow-y-auto"></div>
+                </div>
+            </div>
+        </section>
+
         <!-- 三栏布局 -->
         <div class="flex gap-4">
             <!-- 左侧分类导航 -->

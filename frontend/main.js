@@ -6,6 +6,7 @@
 import {
     fetchIntel, fetchStats, fetchHotAttacks, fetchTags,
     fetchKeywords, fetchSummary, fetchTranslation,
+    fetchGithubTrending, fetchHotTopics,
     buildCategories, buildStatsCards,
     buildThreatLevels, colorMap
 } from './data.js';
@@ -14,7 +15,8 @@ import {
     renderStatCards, renderCategories, renderHotAttacks,
     renderTagCloud, renderKeywordTrends, renderThreatLevels,
     renderIntelCard, renderIntelDetail, renderSkeletons,
-    highlightText, renderSearchSuggestions
+    highlightText, renderSearchSuggestions,
+    renderGithubTrending, renderHotTopics
 } from './components.js';
 
 // ===== 应用状态 =====
@@ -34,6 +36,8 @@ const state = {
     newDataCount: 0,
     lastTotal: 0,
     intelItems: [],
+    trendingPeriod: 'daily',   // 🆕 GitHub Trending 周期
+    hotTopicsRange: 'daily',   // 🆕 热点情报周期
 };
 
 // ===== DOM 引用 =====
@@ -72,6 +76,11 @@ function cacheDom() {
     dom.severityFilterBar = document.getElementById('severityFilterBar');
     dom.logoutBtn = document.getElementById('logoutBtn');
     dom.currentUser = document.getElementById('currentUser');
+    // 🆕 GitHub Trending + 热点情报
+    dom.githubTrendingList = document.getElementById('githubTrendingList');
+    dom.trendingPeriodBtns = document.getElementById('trendingPeriodBtns');
+    dom.hotTopicsList = document.getElementById('hotTopicsList');
+    dom.hotTopicsPeriodBtns = document.getElementById('hotTopicsPeriodBtns');
 }
 
 // ===== 获取情报列表的参数构建 =====
@@ -90,13 +99,15 @@ function buildIntelParams(page = 1) {
 // ===== 渲染函数 =====
 async function renderAll() {
     // 并行获取所有数据
-    const [stats, hotAttacks, tags, keywords, summary, intelResult] = await Promise.all([
+    const [stats, hotAttacks, tags, keywords, summary, intelResult, trendingData, hotTopicsData] = await Promise.all([
         fetchStats(state.timeFilter),
         fetchHotAttacks(state.timeFilter),
         fetchTags(state.timeFilter),
         fetchKeywords(state.timeFilter),
         fetchSummary(state.timeFilter),
         fetchIntel(buildIntelParams(1)),
+        fetchGithubTrending(state.trendingPeriod, 10),
+        fetchHotTopics(state.hotTopicsRange, 10),
     ]);
 
     // 渲染统计卡片
@@ -130,6 +141,12 @@ async function renderAll() {
     // 渲染威胁等级分布
     const threatLevels = buildThreatLevels(stats);
     renderThreatLevels(dom.threatLevelChart, threatLevels);
+
+    // 🆕 渲染 GitHub 热门项目
+    renderGithubTrending(dom.githubTrendingList, trendingData, state.trendingPeriod);
+
+    // 🆕 渲染热点情报聚合
+    renderHotTopics(dom.hotTopicsList, hotTopicsData);
 
     // 渲染情报流
     state.intelItems = intelResult.items;
@@ -203,6 +220,39 @@ function renderIntelFeed() {
         dom.loadMoreBtn.innerHTML = `<i class="ri-arrow-down-line mr-1"></i>加载更多情报 (${state.totalCount - loaded} 条)`;
         dom.loadMoreBtn.disabled = false;
         dom.loadMoreBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
+}
+
+// ===== 搜索建议辅助函数 =====
+function showSearchSuggestions(items, query) {
+    let container = document.getElementById('searchSuggestions');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'searchSuggestions';
+        container.style.cssText = 'position:absolute;top:100%;left:0;right:0;z-index:100;margin-top:4px;';
+        dom.searchInput.parentElement.style.position = 'relative';
+        dom.searchInput.parentElement.appendChild(container);
+    }
+    container.innerHTML = renderSearchSuggestions(items, query);
+    container.classList.remove('hidden');
+
+    // 点击建议项触发搜索
+    container.querySelectorAll('.search-suggestion-item').forEach(el => {
+        el.addEventListener('click', () => {
+            const title = el.querySelector('.suggestion-title')?.textContent || '';
+            dom.searchInput.value = title.substring(0, 30);
+            state.searchQuery = title.substring(0, 30);
+            state.currentPage = 1;
+            hideSearchSuggestions();
+            refreshData();
+        });
+    });
+}
+
+function hideSearchSuggestions() {
+    const container = document.getElementById('searchSuggestions');
+    if (container) {
+        container.classList.add('hidden');
     }
 }
 
@@ -450,6 +500,36 @@ function bindEvents() {
             }
         }
     });
+
+    // 🆕 GitHub Trending 周期切换
+    if (dom.trendingPeriodBtns) {
+        dom.trendingPeriodBtns.addEventListener('click', async (e) => {
+            const btn = e.target.closest('.trending-period-btn');
+            if (btn) {
+                dom.trendingPeriodBtns.querySelectorAll('.trending-period-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                state.trendingPeriod = btn.dataset.period;
+                dom.githubTrendingList.innerHTML = '<div class="text-center py-6"><i class="ri-loader-4-line animate-spin text-gray-500 text-xl"></i></div>';
+                const data = await fetchGithubTrending(state.trendingPeriod, 10);
+                renderGithubTrending(dom.githubTrendingList, data, state.trendingPeriod);
+            }
+        });
+    }
+
+    // 🆕 热点情报周期切换
+    if (dom.hotTopicsPeriodBtns) {
+        dom.hotTopicsPeriodBtns.addEventListener('click', async (e) => {
+            const btn = e.target.closest('.hot-topics-period-btn');
+            if (btn) {
+                dom.hotTopicsPeriodBtns.querySelectorAll('.hot-topics-period-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                state.hotTopicsRange = btn.dataset.range;
+                dom.hotTopicsList.innerHTML = '<div class="text-center py-6"><i class="ri-loader-4-line animate-spin text-gray-500 text-xl"></i></div>';
+                const data = await fetchHotTopics(state.hotTopicsRange, 10);
+                renderHotTopics(dom.hotTopicsList, data);
+            }
+        });
+    }
 
     // 登出按钮
     if (dom.logoutBtn) {

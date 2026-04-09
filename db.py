@@ -495,3 +495,212 @@ def search_suggest(query, limit=8):
     except Exception as e:
         logging.error(f"search_suggest error: {e}")
         return []
+
+
+def get_github_trending(period="daily", limit=10):
+    """
+    获取 GitHub 热门项目
+    period: daily | weekly
+    """
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                # 获取最新的快照日期
+                cursor.execute("""
+                    SELECT MAX(snapshot_date) AS latest
+                    FROM github_trending
+                    WHERE period = %s
+                """, (period,))
+                row = cursor.fetchone()
+                if not row or not row["latest"]:
+                    return []
+
+                latest_date = row["latest"]
+
+                cursor.execute("""
+                    SELECT repo_full_name, repo_name, owner, description,
+                           description_cn, language, stars, forks,
+                           topics, url, avatar_url, rank_score
+                    FROM github_trending
+                    WHERE period = %s AND snapshot_date = %s
+                    ORDER BY rank_score DESC
+                    LIMIT %s
+                """, (period, latest_date, limit))
+
+                items = cursor.fetchall()
+                for item in items:
+                    if isinstance(item.get("topics"), str):
+                        try:
+                            item["topics"] = json.loads(item["topics"])
+                        except:
+                            item["topics"] = []
+                    # 转换 date 为字符串
+                    for f in ["snapshot_date"]:
+                        if item.get(f):
+                            item[f] = str(item[f])
+                return items
+    except Exception as e:
+        logger.error(f"获取 GitHub Trending 失败: {e}")
+        return []
+
+
+def get_hot_topics(time_range="daily", limit=10):
+    """
+    获取热点情报聚合 Top N
+    基于 summary_cn 的前30字做聚合，相似情报累积热度
+    time_range: daily | weekly
+    """
+    time_sql = {
+        "daily": "DATE(crawl_time) = CURDATE()",
+        "weekly": "crawl_time >= DATE_SUB(NOW(), INTERVAL 7 DAY)",
+    }
+    time_cond = time_sql.get(time_range, "DATE(crawl_time) = CURDATE()")
+
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                # 获取有中文摘要的情报
+                cursor.execute(f"""
+                    SELECT id, title, summary_cn, category, severity,
+                           source, source_icon, heat, crawl_time, link
+                    FROM intel_items
+                    WHERE {time_cond}
+                      AND summary_cn IS NOT NULL
+                      AND summary_cn != ''
+                    ORDER BY crawl_time DESC
+                    LIMIT 500
+                """)
+                items = cursor.fetchall()
+
+                if not items:
+                    return []
+
+                # 基于中文摘要前 30 字做聚合
+                topic_groups = {}  # key: summary_cn[:30] -> group
+
+                for item in items:
+                    summary_cn = item.get("summary_cn", "")
+                    if not summary_cn or len(summary_cn) < 10:
+                        continue
+
+                    # 提取核心摘要（前30字）作为聚合键
+                    core_key = summary_cn[:30].strip()
+
+                    # 尝试找到已有的相似组
+                    matched_key = None
+                    for existing_key in topic_groups:
+                        # 计算字符重叠度
+                        overlap = _calc_overlap(core_key, existing_key)
+                        if overlap > 0.45:  # 45% 以上重叠认为是同一话题
+                            matched_key = existing_key
+                            break
+                        # 额外检查：如果两个摘要包含相同的关键实体名
+                        if _share_key_entity(core_key, existing_key):
+                            matched_key = existing_key
+                            break
+
+                    if matched_key:
+                        group = topic_groups[matched_key]
+                        group["count"] += 1
+                        group["total_heat"] += (item.get("heat", 0) or 0)
+                        group["sources"].add(item.get("source", ""))
+                        group["items"].append({
+                            "id": item["id"],
+                            "title": item["title"],
+                            "source": item.get("source", ""),
+                        })
+                        # 如果新情报的 severity 更高，更新
+                        sev_order = {"critical": 5, "high": 4, "medium": 3, "low": 2, "info": 1}
+                        if sev_order.get(item.get("severity", ""), 0) > sev_order.get(group["severity"], 0):
+                            group["severity"] = item["severity"]
+                    else:
+                        topic_groups[core_key] = {
+                            "title": item.get("title", ""),
+                            "summary_cn": summary_cn,
+                            "category": item.get("category", "general"),
+                            "severity": item.get("severity", "info"),
+                            "count": 1,
+                            "total_heat": item.get("heat", 0) or 0,
+                            "sources": {item.get("source", "")},
+                            "first_time": str(item.get("crawl_time", "")),
+                            "link": item.get("link", ""),
+                            "items": [{
+                                "id": item["id"],
+                                "title": item["title"],
+                                "source": item.get("source", ""),
+                            }],
+                        }
+
+                # 计算综合热度分数并排序
+                result = []
+                for key, group in topic_groups.items():
+                    # 热度公式优化：
+                    # - 多篇报道权重最高（count * 100）
+                    # - 多源报道加权（source_count * 50）
+                    # - 原始heat归一化（log scale避免单一高heat值主导）
+                    import math
+                    heat_normalized = math.log2(group["total_heat"] + 1) * 10
+                    hot_score = round(
+                        group["count"] * 100 +
+                        len(group["sources"]) * 50 +
+                        heat_normalized
+                    )
+                    result.append({
+                        "title": group["title"],
+                        "summary_cn": group["summary_cn"][:100],
+                        "category": group["category"],
+                        "severity": group["severity"],
+                        "count": group["count"],
+                        "hot_score": hot_score,
+                        "source_count": len(group["sources"]),
+                        "sources": list(group["sources"])[:5],
+                        "first_time": group["first_time"],
+                        "link": group["link"],
+                        "related_count": len(group["items"]),
+                        "related_items": group["items"][:5],
+                    })
+
+                result.sort(key=lambda x: x["hot_score"], reverse=True)
+                return result[:limit]
+
+    except Exception as e:
+        logger.error(f"获取热点情报失败: {e}")
+        return []
+
+
+def _calc_overlap(s1, s2):
+    """计算两个字符串的字符重叠度（Jaccard 相似度）"""
+    if not s1 or not s2:
+        return 0
+    set1 = set(s1)
+    set2 = set(s2)
+    intersection = set1 & set2
+    union = set1 | set2
+    return len(intersection) / len(union) if union else 0
+
+
+def _share_key_entity(s1, s2):
+    """
+    检查两个摘要是否包含相同的关键实体（产品名/CVE编号/公司名等）
+    """
+    import re
+    # 提取 CVE 编号
+    cve_pattern = re.compile(r'CVE-\d{4}-\d+', re.IGNORECASE)
+    cves1 = set(cve_pattern.findall(s1))
+    cves2 = set(cve_pattern.findall(s2))
+    if cves1 and cves2 and cves1 & cves2:
+        return True
+
+    # 提取关键产品/公司名（英文词 >= 4 字母）
+    word_pattern = re.compile(r'[A-Z][a-zA-Z]{3,}')
+    words1 = set(word_pattern.findall(s1))
+    words2 = set(word_pattern.findall(s2))
+    # 排除常见通用词
+    stopwords = {'This', 'That', 'These', 'Those', 'With', 'From', 'About', 'Have', 'Been', 'Will', 'Could', 'Should'}
+    words1 -= stopwords
+    words2 -= stopwords
+    shared = words1 & words2
+    if len(shared) >= 2:  # 至少2个相同的专有名词
+        return True
+
+    return False

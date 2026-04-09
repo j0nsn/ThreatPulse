@@ -107,6 +107,18 @@ export async function fetchTranslation(text) {
     return data ? data.translated : null;
 }
 
+// 🆕 GitHub 热门项目 API
+export async function fetchGithubTrending(period = 'daily', limit = 10) {
+    const data = await apiFetch('/github-trending', { period, limit });
+    return data || [];
+}
+
+// 🆕 热点情报聚合 API
+export async function fetchHotTopics(time_range = 'daily', limit = 10) {
+    const data = await apiFetch('/hot-topics', { time_range, limit });
+    return data || [];
+}
+
 export function buildCategories(categoryCounts, total) {
     return defaultCategories.map(cat => ({
         ...cat,

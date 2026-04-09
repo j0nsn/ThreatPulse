@@ -19,7 +19,8 @@ from flask import Flask, jsonify, request, send_from_directory, redirect, make_r
 from flask_cors import CORS
 from db import (
     query_intel, get_stats, get_hot_keywords,
-    get_tag_cloud, get_hot_attacks, search_suggest
+    get_tag_cloud, get_hot_attacks, search_suggest,
+    get_github_trending, get_hot_topics
 )
 
 logging.basicConfig(
@@ -577,6 +578,30 @@ def api_search_suggest():
 
     results = search_suggest(q, limit=8)
     return jsonify({"code": 0, "data": results})
+
+
+@app.route("/api/github-trending", methods=["GET"])
+@login_required
+def api_github_trending():
+    """获取 GitHub 热门 Agent/大模型项目"""
+    period = request.args.get("period", "daily")  # daily | weekly
+    limit = int(request.args.get("limit", 10))
+    if period not in ("daily", "weekly"):
+        period = "daily"
+    items = get_github_trending(period, limit)
+    return jsonify({"code": 0, "data": items})
+
+
+@app.route("/api/hot-topics", methods=["GET"])
+@login_required
+def api_hot_topics():
+    """获取热点情报聚合 Top N"""
+    time_range = request.args.get("time_range", "daily")  # daily | weekly
+    limit = int(request.args.get("limit", 10))
+    if time_range not in ("daily", "weekly"):
+        time_range = "daily"
+    topics = get_hot_topics(time_range, limit)
+    return jsonify({"code": 0, "data": topics})
 
 
 if __name__ == "__main__":

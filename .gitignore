@@ -29,5 +29,6 @@ Thumbs.db
 .env
 github_cron.log
 multi_cron.log
+trending_cron.log
 backfill.log
 freebuf_articles.json

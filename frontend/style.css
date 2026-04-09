@@ -531,3 +531,94 @@ mark.search-highlight {
     border-color: rgba(6, 182, 212, 0.4);
     box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.1);
 }
+
+/* ===== 🆕 GitHub Trending 热门项目 ===== */
+.github-trending-item {
+    padding: 10px 8px;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.github-trending-item:last-child {
+    border-bottom: none;
+}
+
+.github-trending-item:hover {
+    background: rgba(139, 92, 246, 0.06);
+}
+
+/* Trending 周期切换按钮 */
+.trending-period-btn {
+    color: #6b7280;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.trending-period-btn:hover {
+    color: #d1d5db;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.trending-period-btn.active {
+    color: #a78bfa;
+    background: rgba(139, 92, 246, 0.12);
+    border-color: rgba(139, 92, 246, 0.25);
+}
+
+/* ===== 🆕 热点情报聚合 ===== */
+.hot-topic-item {
+    padding: 10px 8px;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.hot-topic-item:last-child {
+    border-bottom: none;
+}
+
+.hot-topic-item:hover {
+    background: rgba(245, 158, 11, 0.06);
+}
+
+/* Hot Topics 周期切换按钮 */
+.hot-topics-period-btn {
+    color: #6b7280;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.hot-topics-period-btn:hover {
+    color: #d1d5db;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.hot-topics-period-btn.active {
+    color: #fbbf24;
+    background: rgba(245, 158, 11, 0.12);
+    border-color: rgba(245, 158, 11, 0.25);
+}
+
+/* GitHub Trending 和 Hot Topics 的滚动条 */
+#githubTrendingList::-webkit-scrollbar,
+#hotTopicsList::-webkit-scrollbar {
+    width: 4px;
+}
+
+#githubTrendingList::-webkit-scrollbar-thumb,
+#hotTopicsList::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 2px;
+}
+
+#githubTrendingList::-webkit-scrollbar-track,
+#hotTopicsList::-webkit-scrollbar-track {
+    background: transparent;
+}
