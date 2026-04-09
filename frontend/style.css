@@ -408,3 +408,126 @@
     border-color: rgba(16, 185, 129, 0.2);
     cursor: default;
 }
+
+
+/* ===== 搜索高亮样式 ===== */
+mark.search-highlight {
+    background: rgba(6, 182, 212, 0.25);
+    color: #e2e8f0;
+    padding: 0 2px;
+    border-radius: 2px;
+    font-style: normal;
+}
+
+/* ===== 搜索建议下拉 ===== */
+.search-suggestions {
+    background: #1a1d23;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+    backdrop-filter: blur(20px);
+    max-height: 420px;
+    overflow-y: auto;
+}
+
+.search-suggestions-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 14px;
+    font-size: 11px;
+    color: #6b7280;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    position: sticky;
+    top: 0;
+    background: #1a1d23;
+    z-index: 1;
+}
+
+.search-suggestion-item {
+    padding: 10px 14px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.search-suggestion-item:hover {
+    background: rgba(6, 182, 212, 0.06);
+}
+
+.search-suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.suggestion-title {
+    font-size: 13px;
+    color: #e2e8f0;
+    font-weight: 500;
+    margin-bottom: 4px;
+    line-height: 1.4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.suggestion-snippet {
+    font-size: 11px;
+    color: #6b7280;
+    line-height: 1.5;
+    margin-bottom: 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.suggestion-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.suggestion-category {
+    font-size: 10px;
+    color: #6b7280;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 1px 6px;
+    border-radius: 3px;
+}
+
+.suggestion-match-field {
+    font-size: 10px;
+    color: #06b6d4;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.suggestion-match-field i {
+    font-size: 11px;
+}
+
+/* 搜索建议滚动条 */
+.search-suggestions::-webkit-scrollbar {
+    width: 4px;
+}
+.search-suggestions::-webkit-scrollbar-track {
+    background: transparent;
+}
+.search-suggestions::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+}
+
+/* 搜索框活跃状态增强 */
+#searchInput:focus + kbd,
+#searchInput:not(:placeholder-shown) + kbd {
+    display: none !important;
+}
+
+/* 搜索中状态 */
+.search-active #searchInput {
+    border-color: rgba(6, 182, 212, 0.4);
+    box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.1);
+}

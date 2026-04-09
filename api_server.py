@@ -19,7 +19,7 @@ from flask import Flask, jsonify, request, send_from_directory, redirect, make_r
 from flask_cors import CORS
 from db import (
     query_intel, get_stats, get_hot_keywords,
-    get_tag_cloud, get_hot_attacks
+    get_tag_cloud, get_hot_attacks, search_suggest
 )
 
 logging.basicConfig(
@@ -565,6 +565,19 @@ def api_translate():
             "target_lang": "zh-CN",
         }
     })
+
+
+@app.route("/api/search/suggest", methods=["GET"])
+@login_required
+def api_search_suggest():
+    """搜索建议接口：基于 summary_cn 和 summary 做模糊匹配"""
+    q = request.args.get("q", "").strip()
+    if not q or len(q) < 2:
+        return jsonify({"code": 0, "data": []})
+
+    results = search_suggest(q, limit=8)
+    return jsonify({"code": 0, "data": results})
+
 
 if __name__ == "__main__":
     logger.info("🚀 ThreatPulse API Server v4 (Hardened) starting on port 5000...")

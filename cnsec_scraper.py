@@ -21,6 +21,8 @@ from urllib.parse import quote, urljoin
 from datetime import datetime
 
 from db_cnsec import insert_cnsec_article, article_exists
+from db import check_duplicate_by_summary_cn
+from deepseek_summarizer import generate_summary
 
 # ============ 配置 ============
 
@@ -400,10 +402,20 @@ def run_scraper():
         # 热度 = 浏览量
         heat = art.get("views", 0)
 
+        # 调用 DeepSeek 生成中文摘要
+        ds_content = full_text or art.get("summary", "")
+        summary_cn = generate_summary(art["title"], ds_content)
+        if summary_cn:
+            # 用中文摘要做去重检查
+            if check_duplicate_by_summary_cn(summary_cn):
+                logger.info(f"  🔄 中文摘要去重: 跳过相似情报")
+                continue
+        
         article_data = {
             "article_id": art["article_id"],
             "title": db_title,
             "summary": art.get("summary", ""),
+            "summary_cn": summary_cn,
             "full_text": full_text,
             "category": classify["category"],
             "severity": classify["severity"],

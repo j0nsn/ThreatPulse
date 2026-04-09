@@ -12,7 +12,8 @@ from itertools import product
 
 from config import KEYWORDS_FILE, OUTPUT_DIR, MAX_TWEETS_PER_KEYWORD
 from scraper import TwitterScraper
-from db import batch_insert_tweets
+from db import batch_insert_tweets, update_summary_cn, check_duplicate_by_summary_cn
+from deepseek_summarizer import generate_summary
 
 # === 日志配置 ===
 logging.basicConfig(
@@ -120,6 +121,19 @@ def main():
             if tweets:
                 # 保存到 JSON 文件
                 save_results(keyword, tweets, OUTPUT_DIR)
+
+                # 为每条推文生成 DeepSeek 中文摘要
+                for t in tweets:
+                    title = t.get("full_text", "")[:80]
+                    content_text = t.get("full_text", "")
+                    if content_text:
+                        summary_cn = generate_summary(title, content_text)
+                        if summary_cn:
+                            # 用中文摘要做去重检查
+                            if check_duplicate_by_summary_cn(summary_cn):
+                                logger.info(f"  🔄 中文摘要去重: 跳过相似情报")
+                                continue
+                            t["summary_cn"] = summary_cn
 
                 # 写入 MySQL
                 new_count = batch_insert_tweets(tweets, keyword)

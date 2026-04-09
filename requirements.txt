@@ -1,2 +1,8 @@
 httpx[http2]
 PyYAML
+pymysql
+flask
+flask-cors
+requests
+beautifulsoup4
+lxml

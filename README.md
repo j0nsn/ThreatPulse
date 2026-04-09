@@ -1,17 +1,24 @@
 # ThreatPulse 安全情报聚合平台
 
-> 基于 Twitter/X 公开情报的自动化安全情报采集、分类、展示平台
+> 多源安全情报自动化采集、AI 摘要、分类评级与可视化展示平台
+
+![Python](https://img.shields.io/badge/Python-3.9+-blue?logo=python)
+![Flask](https://img.shields.io/badge/Flask-API-green?logo=flask)
+![MySQL](https://img.shields.io/badge/MySQL-8.0-orange?logo=mysql)
+![License](https://img.shields.io/badge/License-MIT-yellow)
 
 ## 📋 目录
 
 - [项目概述](#项目概述)
 - [系统架构](#系统架构)
-- [目录结构](#目录结构)
 - [核心功能](#核心功能)
-- [技术实现细节](#技术实现细节)
-- [快速部署指南](#快速部署指南)
+- [数据源](#数据源)
+- [目录结构](#目录结构)
+- [快速部署](#快速部署)
 - [配置说明](#配置说明)
 - [安全机制](#安全机制)
+- [定时任务](#定时任务)
+- [技术实现细节](#技术实现细节)
 - [注意事项与踩坑记录](#注意事项与踩坑记录)
 - [维护指南](#维护指南)
 
@@ -19,66 +26,137 @@
 
 ## 项目概述
 
-ThreatPulse 是一个全自动的安全情报聚合平台，完整链路为：
+ThreatPulse 是一个全自动的安全情报聚合平台，聚焦 **AI 安全**、**DDoS 防护**、**渗透测试**、**Web 安全**、**大模型安全** 五大方向，从多个数据源持续采集情报并通过 DeepSeek AI 生成统一的中文摘要，提供深色风格的可视化展示界面。
+
+**完整数据流：**
 
 ```
-Twitter/X 爬虫 → MySQL 存储 → Flask API → 前端展示平台
+多源爬虫 → DeepSeek AI 中文摘要 → MySQL 存储 → Flask API → 前端展示平台
 ```
 
 **核心能力：**
-- 定时从 Twitter/X 采集安全相关推文（DDoS、漏洞、AI Agent、LLM 等方向）
-- 自动分类（6 大类）+ 严重等级评估（4 级）+ 标签提取
-- 深色风格的 Web 情报展示平台，支持筛选、搜索、翻译
-- 完整的登录认证系统（JWT + HttpOnly Cookie）
+- 🌐 **多源情报采集**：Twitter/X、CN-SEC 中文安全社区、GitHub 仓库 & 安全公告
+- 🤖 **AI 中文摘要**：DeepSeek 自动为所有情报生成简洁的中文摘要
+- 📊 **智能分类**：自动分类（10+ 类别）+ 严重等级评估（5 级）+ 标签提取
+- 🔍 **模糊搜索**：支持多关键词 AND 搜索 + 搜索建议 + 关键词高亮
+- 🎨 **深色风格 UI**：现代化情报展示界面，支持筛选、排序、详情查看
+- 🔐 **安全认证**：JWT + HttpOnly Cookie + 防暴力破解
 
 ---
 
 ## 系统架构
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        用户浏览器                                │
-│  http://YOUR_SERVER/Th/  →  login.html → index.html             │
-└──────────────────────────────┬──────────────────────────────────┘
-                               │ HTTP
-                               ▼
-┌──────────────────────────────────────────────────────────────────┐
-│  Nginx (反向代理)                                                │
-│  /Th/ → proxy_pass http://127.0.0.1:5000/                       │
-│  隐藏文件(.开头) → deny all (403)                                │
-└──────────────────────────────┬──────────────────────────────────┘
-                               │
-                               ▼
-┌──────────────────────────────────────────────────────────────────┐
-│  Flask API Server (api_server.py)  port:5000                     │
-│  ┌────────────┐  ┌──────────────┐  ┌───────────────────┐        │
-│  │ 认证中间件  │  │ 情报查询 API │  │ 翻译/统计/标签 API│        │
-│  │ JWT+Cookie │  │ 分页/筛选    │  │ Google翻译+术语库 │        │
-│  └────────────┘  └──────┬───────┘  └───────────────────┘        │
-│                         │                                        │
-│  ┌──────────────────────▼──────────────────────────────┐        │
-│  │  db.py (数据库操作层)                                │        │
-│  │  PyMySQL · 连接池 · 分类/统计/查询                   │        │
-│  └──────────────────────┬──────────────────────────────┘        │
-└─────────────────────────┼───────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                           用户浏览器                                 │
+│  http://YOUR_SERVER/Th/  →  login.html → index.html                 │
+└────────────────────────────────┬────────────────────────────────────┘
+                                 │ HTTP
+                                 ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  Nginx (反向代理)                                                    │
+│  /Th/ → proxy_pass http://127.0.0.1:5000/                           │
+│  隐藏文件(.开头) → deny all (403)                                    │
+└────────────────────────────────┬────────────────────────────────────┘
+                                 │
+                                 ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  Flask API Server (api_server.py)  port:5000                         │
+│  ┌────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────┐  │
+│  │ 认证中间件  │  │ 情报查询 API │  │ 搜索建议 API │  │ 统计 API │  │
+│  │ JWT+Cookie │  │ 分页/筛选    │  │ 模糊匹配     │  │ 热词/标签│  │
+│  └────────────┘  └──────┬───────┘  └──────────────┘  └──────────┘  │
+│                         │                                            │
+│  ┌──────────────────────▼──────────────────────────────────────┐    │
+│  │  db.py (数据库操作层)                                        │    │
+│  │  PyMySQL · 连接池 · 分类/统计/查询 · 多关键词搜索            │    │
+│  └──────────────────────┬──────────────────────────────────────┘    │
+└─────────────────────────┼───────────────────────────────────────────┘
                           │
                           ▼
-┌──────────────────────────────────────────────────────────────────┐
-│  MySQL 数据库 (threatpulse)                                      │
-│  表: intel_items                                                 │
-│  索引: category, severity, crawl_time, keyword, heat, FULLTEXT   │
-└──────────────────────────┬──────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│  MySQL 数据库 (threatpulse)                                          │
+│  表: intel_items                                                     │
+│  字段: title, summary, summary_cn, full_text, category, severity...  │
+│  索引: category, severity, crawl_time, keyword, heat, FULLTEXT       │
+└──────────────────────────┬──────────────────────────────────────────┘
                            ▲
-                           │ INSERT
-┌──────────────────────────┴──────────────────────────────────────┐
-│  Twitter 爬虫 (crontab 每小时执行)                               │
-│  main.py → scraper.py → Twitter GraphQL API                     │
-│  ┌──────────────┐  ┌───────────────┐  ┌──────────────────┐     │
-│  │ keywords.yml │  │ cookies.json  │  │ transaction_id.py│     │
-│  │ 52个搜索词   │  │ 账户凭证      │  │ 反爬签名生成     │     │
-│  └──────────────┘  └───────────────┘  └──────────────────┘     │
-└─────────────────────────────────────────────────────────────────┘
+              ┌────────────┼────────────┐
+              │            │            │
+    ┌─────────┴──┐  ┌─────┴──────┐  ┌──┴──────────┐
+    │  Twitter    │  │  CN-SEC    │  │  GitHub     │
+    │  爬虫       │  │  爬虫      │  │  爬虫       │
+    │  每小时:00  │  │  每小时:30 │  │  每小时:15  │
+    │             │  │            │  │             │
+    │ GraphQL API │  │ cn-sec.com │  │ Search API  │
+    │ 52个搜索词  │  │ 5个分类    │  │ Advisory API│
+    └─────────────┘  └────────────┘  └─────────────┘
+              │            │            │
+              └────────────┼────────────┘
+                           │
+                           ▼
+              ┌────────────────────────┐
+              │  DeepSeek AI 中文摘要   │
+              │  deepseek-chat model   │
+              │  统一生成中文情报摘要   │
+              └────────────────────────┘
 ```
+
+---
+
+## 核心功能
+
+### 情报采集
+| 数据源 | 采集方式 | 频率 | 覆盖方向 |
+|--------|---------|------|---------|
+| **Twitter/X** | GraphQL API + 反爬签名 | 每小时整点 | 52 个安全关键词 |
+| **CN-SEC** | 网页爬虫 + BeautifulSoup | 每小时 30 分 | 5 个安全分类 |
+| **GitHub Repo** | GitHub Search API | 每小时 15 分 | 18 个搜索词 |
+| **GitHub Advisory** | Security Advisory API | 每小时 15 分 | 官方 CVE/GHSA |
+
+### AI 中文摘要
+- 使用 DeepSeek Chat API 自动生成中文情报摘要
+- 所有来源的情报统一生成 ≤150 字的中文摘要
+- 情报详情同时展示中文摘要和原文摘要
+
+### 智能分类
+- **10+ 分类**: DDoS, Web安全, 恶意软件, APT, 漏洞, 钓鱼, 勒索, AI Agent, 大模型, 综合
+- **5 级严重度**: Critical, High, Medium, Low, Info
+- **自动标签**: 基于内容提取关键标签
+
+### 模糊搜索
+- 多关键词 AND 搜索（空格分隔）
+- 搜索范围：标题 + 原文摘要 + 中文摘要 + 全文
+- 实时搜索建议下拉（显示匹配字段标记）
+- 搜索关键词高亮
+
+---
+
+## 数据源
+
+### 1. Twitter/X 情报
+通过 `twscrape` 引擎调用 Twitter GraphQL API，采集安全相关推文。
+
+**关键词方向（52 个搜索词）：**
+- **DDoS**: DDoS attack, botnet, volumetric attack, DDoS mitigation...
+- **AI Agent**: AI agent security, MCP vulnerability, autonomous agent...
+- **LLM 安全**: prompt injection, LLM jailbreak, model poisoning...
+- **Web 安全**: WAF bypass, XSS, SQL injection, SSRF...
+- **综合安全**: zero-day, ransomware, APT, supply chain attack...
+
+### 2. CN-SEC 中文安全社区
+爬取 cn-sec.com 的 5 个分类页面：
+- 安全漏洞、安全新闻、安全文章、人工智能安全、安全博客
+
+### 3. GitHub 安全情报
+**仓库搜索（18 个搜索词，5 大方向）：**
+- **Agent 新技术**: AI agent security tool, MCP server security, autonomous agent framework...
+- **大模型新技术**: LLM security vulnerability, prompt injection defense...
+- **AI + DDoS**: AI DDoS detection defense, machine learning DDoS mitigation...
+- **AI + 渗透测试**: AI penetration testing tool, AI automated exploit...
+- **AI + Web 防护**: AI WAF web application firewall, AI web security protection...
+
+**安全公告：** GitHub Security Advisory Database（CVE/GHSA）
 
 ---
 
@@ -86,512 +164,285 @@ Twitter/X 爬虫 → MySQL 存储 → Flask API → 前端展示平台
 
 ```
 ThreatPulse/
-├── README.md                  # 本文档
-├── setup.py                   # 交互式部署初始化脚本
-├── requirements.txt           # Python 依赖
-│
-├── # ===== 爬虫层 =====
-├── main.py                    # 爬虫入口（crontab 调用）
-├── scraper.py                 # Twitter GraphQL 爬虫核心
-├── config.py                  # 全局配置（API端点/延迟/UA等）
-├── transaction_id.py          # x-client-transaction-id 生成器
-├── account_manager.py         # Twitter Cookie 账户管理工具
-├── keywords.yml               # 搜索关键词配置（52个词）
-│
-├── # ===== 数据层 =====
-├── db.py                      # MySQL 操作层（CRUD/分类/统计）
-├── import_test.py             # 数据导入测试脚本
-│
-├── # ===== API 层 =====
-├── api_server.py              # Flask API 服务（认证/查询/翻译）
-│
-├── # ===== 前端 =====
-├── frontend/
-│   ├── index.html             # 主页面（情报仪表盘）
-│   ├── login.html             # 登录页面
-│   ├── login.js               # 登录逻辑（含锁定倒计时）
-│   ├── main.js                # 主页核心逻辑
-│   ├── data.js                # API 数据层
-│   ├── components.js          # UI 组件（情报卡片/详情弹窗等）
-│   └── style.css              # 全局样式（深色主题）
-│
-├── # ===== 部署 =====
+├── api_server.py            # Flask API 服务（认证、查询、搜索、统计）
+├── db.py                    # 数据库操作层（查询、分类、统计、搜索建议）
+├── db_cnsec.py              # CN-SEC 数据入库模块
+├── main.py                  # Twitter 爬虫主入口
+├── scraper.py               # Twitter GraphQL 爬虫引擎
+├── cnsec_scraper.py         # CN-SEC 中文安全社区爬虫
+├── github_scraper.py        # GitHub 仓库 + Advisory 爬虫
+├── deepseek_summarizer.py   # DeepSeek AI 中文摘要生成器
+├── backfill_summary.py      # 存量情报中文摘要回填脚本
+├── config.py                # 全局配置
+├── keywords.yml             # Twitter 搜索关键词配置（52 词）
+├── account_manager.py       # Twitter 账户管理
+├── transaction_id.py        # Twitter x-client-transaction-id 签名生成
+├── import_test.py           # 数据导入测试脚本
+├── setup.py                 # 一键部署初始化脚本
+├── requirements.txt         # Python 依赖
+├── .env.example             # 环境变量配置模板
+├── .gitignore               # Git 忽略规则
 ├── deploy/
-│   ├── .auth_config.json.template  # 认证配置模板
-│   ├── threatpulse.service         # systemd 服务模板（setup.py 生成）
-│   └── threatpulse.conf            # Nginx 配置模板（setup.py 生成）
-│
-├── # ===== 运行时生成（不包含在源码包中） =====
-├── .auth_config.json          # 登录账密配置（setup.py 生成）
-├── .jwt_secret                # JWT 签名密钥（setup.py 生成）
-├── cookies.json               # Twitter Cookie（手动配置）
-├── output/                    # 爬虫原始输出
-└── cron.log                   # 定时任务日志
+│   └── .auth_config.json.template  # 认证配置模板
+└── frontend/
+    ├── index.html           # 情报展示主页面
+    ├── login.html           # 登录页面
+    ├── main.js              # 主逻辑（情报流、搜索、筛选、分页）
+    ├── components.js        # UI 组件（卡片、详情弹窗、高亮、搜索建议）
+    ├── data.js              # 数据层（API 调用）
+    ├── login.js             # 登录逻辑
+    └── style.css            # 深色主题样式
 ```
 
 ---
 
-## 核心功能
+## 快速部署
 
-### 1. Twitter 爬虫引擎
+### 前置要求
+- Python 3.9+
+- MySQL 8.0+
+- Nginx（反向代理）
+- 外部 API 密钥：DeepSeek API Key、GitHub Personal Access Token
 
-| 特性 | 说明 |
-|------|------|
-| **采集方式** | 直接调用 Twitter GraphQL 内部 API（非官方 API） |
-| **认证方式** | 真实账户 Session Cookie（auth_token + ct0） |
-| **搜索词** | 52 个关键词，覆盖 DDoS/Agent/LLM/漏洞/恶意软件 5 大方向 |
-| **反爬策略** | 随机延迟(2-5s)、指数退避、x-client-transaction-id 签名 |
-| **去重机制** | 基于 tweet_id 的 `INSERT IGNORE`，天然去重 |
-| **定时执行** | crontab 每整点运行一次 |
-
-### 2. 自动分类与评级
-
-**6 大分类：**
-- `ddos` — DDoS/僵尸网络/流量攻击
-- `vuln` — 漏洞情报/CVE/Exploit
-- `malware` — 恶意软件/勒索软件/后门
-- `agent` — AI Agent/自主智能体/MCP
-- `llm` — 大语言模型/GPT/Claude/DeepSeek
-- `general` — 综合情报
-
-**4 级严重等级：**
-- 🔴 `critical` — 零日漏洞/RCE/正在被利用
-- 🟠 `high` — 重大攻击/数据泄露
-- 🟡 `medium` — 新版本发布/技术突破
-- 🟢 `low` — 一般信息
-
-**自动标签：** 从内容中提取最多 8 个标签（DDoS、Botnet、LLM、RAG 等）
-
-### 3. Web 情报平台
-
-- **仪表盘：** 情报总数、严重/高危计数、来源数、AI 态势摘要
-- **情报流：** 分页展示，支持分类筛选、严重等级筛选、关键词搜索、时间范围筛选
-- **情报详情弹窗：** 摘要全文、中文翻译（Google 翻译 API + 术语库备用）、来源链接、互动数据
-- **热点攻击榜 / 标签云 / 关键词趋势**
-- **每条情报显示具体日期时间 + 相对时间**
-
-### 4. 认证系统
-
-- JWT Token + HttpOnly Cookie（Token 不在响应中返回）
-- IP 级登录频率限制（5 次失败 → 锁定 15 分钟）
-- 密码 SHA256+Salt 哈希存储（配置文件中无明文密码）
-- JWT Secret 持久化（服务重启不影响已登录用户）
-
----
-
-## 技术实现细节
-
-### 爬虫核心 (scraper.py)
-
-```python
-# Twitter GraphQL API 调用流程
-1. 从 cookies.json 加载 auth_token + ct0
-2. 构造请求头（Bearer Token + Cookie + x-csrf-token + transaction-id）
-3. 发送 GraphQL 查询到 SearchTimeline 端点
-4. 解析嵌套 JSON 提取推文数据（full_text/user/metrics）
-5. 调用 db.py 的分类函数 + 写入 MySQL
-```
-
-**关键技术点：**
-
-- **GraphQL queryId**: Twitter 会定期更换 queryId，当前有效值在 `config.py` 的 `SEARCH_QUERY_ID` 中
-- **x-client-transaction-id**: Twitter 新增的反爬验证头，由 `transaction_id.py` 生成
-- **Bearer Token**: Twitter 公开的固定 Bearer Token（所有客户端共用），在 `config.py` 中
-- **Cookie 有效期**: 通常 1-3 个月，失效后需手动更新
-
-### 数据库设计 (db.py)
-
-核心表 `intel_items` 字段：
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| tweet_id | VARCHAR(64) UNIQUE | 推文唯一ID，用于去重 |
-| title | VARCHAR(512) | 标题（前80字符） |
-| full_text | TEXT | 推文全文 |
-| category | VARCHAR(32) | 分类（6选1） |
-| severity | VARCHAR(16) | 严重等级（4选1） |
-| tags | JSON | 标签数组（最多8个） |
-| heat | INT | 热度值 = RT×3 + Fav×2 + Reply + Quote |
-| keyword | VARCHAR(256) | 匹配的搜索关键词 |
-| user_screen_name | VARCHAR(256) | 推文作者 |
-| link | VARCHAR(1024) | 原文链接 |
-| crawl_time | DATETIME | 爬取时间 |
-
-索引策略：category、severity、crawl_time、keyword、heat 均有索引，title+full_text 有全文索引。
-
-### API 服务 (api_server.py)
-
-| 端点 | 方法 | 认证 | 说明 |
-|------|------|------|------|
-| `/api/auth/login` | POST | ❌ | 登录（含 IP 频率限制） |
-| `/api/auth/check` | GET | ❌ | 检查登录状态 |
-| `/api/auth/logout` | POST | ❌ | 退出登录 |
-| `/api/intel` | GET | ✅ | 查询情报列表（分页/筛选） |
-| `/api/stats` | GET | ✅ | 统计数据 |
-| `/api/hot-attacks` | GET | ✅ | 热点攻击榜 |
-| `/api/tags` | GET | ✅ | 标签云 |
-| `/api/keywords` | GET | ✅ | 关键词趋势 |
-| `/api/summary` | GET | ✅ | AI 态势摘要 |
-| `/api/translate` | POST | ✅ | 文本翻译（Google翻译） |
-
-### 前端架构
-
-- **纯原生 JS**，无框架依赖
-- **CDN 依赖**: TailwindCSS、RemixIcon、Google Fonts
-- **深色主题**: 基于 `#0f172a` 背景色系
-- **响应式设计**: 适配桌面端
-
----
-
-## 快速部署指南
-
-### 环境要求
-
-| 组件 | 版本要求 |
-|------|---------|
-| **操作系统** | Linux (CentOS/Ubuntu/Debian) |
-| **Python** | 3.8+ |
-| **MySQL** | 5.7+ / 8.0+ |
-| **Nginx** | 1.18+ |
-| **网络** | 需要能访问 x.com（Twitter） |
-
-### 一键部署
+### 1. 克隆项目
 
 ```bash
-# 1. 解压项目
-unzip ThreatPulse.zip -d /data/
-cd /data/ThreatPulse
+git clone https://github.com/j0nsn/ThreatPulse.git
+cd ThreatPulse
+pip install -r requirements.txt
+```
 
-# 2. 安装 Python 依赖
-pip3 install -r requirements.txt
+### 2. 配置环境变量
 
-# 3. 运行交互式部署向导
+```bash
+cp .env.example .env
+vim .env
+# 填入实际的数据库密码、DeepSeek API Key、GitHub Token
+```
+
+### 3. 运行初始化脚本
+
+```bash
 python3 setup.py
-# 按提示输入：管理员账密、MySQL配置、URL路径等
+```
 
-# 4. 配置 Twitter Cookie（参见下方说明）
-# 编辑 cookies.json
+初始化脚本会自动完成：
+- 生成 `.auth_config.json`（管理员账密，仅存 hash）
+- 生成 `.jwt_secret`（JWT 签名密钥）
+- 初始化 MySQL 数据库和表结构
+- 生成 systemd 服务文件
+- 生成 Nginx 配置文件
 
-# 5. 安装 systemd 服务
-cp deploy/threatpulse.service /etc/systemd/system/
-systemctl daemon-reload
-systemctl enable --now threatpulse.service
+### 4. 加载环境变量
 
-# 6. 安装 Nginx 配置
-cp deploy/threatpulse.conf /etc/nginx/conf.d/
-nginx -t && nginx -s reload
+```bash
+# 方式一：直接 export
+export $(cat .env | grep -v '^#' | xargs)
 
-# 7. 添加定时任务
+# 方式二：在 systemd 服务中配置 EnvironmentFile
+# 在 [Service] 段添加：EnvironmentFile=/path/to/ThreatPulse/.env
+```
+
+### 5. 启动服务
+
+```bash
+# 启动 API 服务
+systemctl start threatpulse
+systemctl enable threatpulse
+
+# 配置 Nginx 反向代理
+# 参考 setup.py 生成的配置文件
+
+# 配置定时爬虫
 crontab -e
-# 添加: 0 * * * * cd /data/ThreatPulse && python3 main.py >> cron.log 2>&1
-
-# 8. 手动执行一次爬虫（首次采集数据）
-cd /data/ThreatPulse && python3 main.py
-
-# 9. 访问平台
-# http://YOUR_SERVER_IP/Th/
+# 添加以下三行：
+# 0  * * * * cd /path/to/ThreatPulse && python3 main.py >> cron.log 2>&1
+# 15 * * * * cd /path/to/ThreatPulse && python3 github_scraper.py >> github_cron.log 2>&1
+# 30 * * * * cd /path/to/ThreatPulse && python3 cnsec_scraper.py >> cnsec_cron.log 2>&1
 ```
 
-### 手动部署（不使用 setup.py）
+### 6. 添加 Twitter 账户
 
-如果不想使用交互式向导，可手动完成以下步骤：
-
-#### Step 1: MySQL 初始化
-
-```sql
-CREATE DATABASE threatpulse CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'threatpulse'@'localhost' IDENTIFIED BY '你的密码';
-GRANT ALL PRIVILEGES ON threatpulse.* TO 'threatpulse'@'localhost';
-FLUSH PRIVILEGES;
-
-USE threatpulse;
-CREATE TABLE intel_items (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    tweet_id VARCHAR(64) UNIQUE,
-    title VARCHAR(512) NOT NULL DEFAULT '',
-    summary TEXT,
-    full_text TEXT,
-    category VARCHAR(32) NOT NULL DEFAULT 'general',
-    severity VARCHAR(16) NOT NULL DEFAULT 'low',
-    source VARCHAR(256) DEFAULT '',
-    source_icon VARCHAR(64) DEFAULT 'ri-twitter-x-line',
-    tags JSON,
-    heat INT DEFAULT 0,
-    comments INT DEFAULT 0,
-    ioc JSON,
-    link VARCHAR(1024) DEFAULT '',
-    keyword VARCHAR(256) DEFAULT '',
-    user_name VARCHAR(256) DEFAULT '',
-    user_screen_name VARCHAR(256) DEFAULT '',
-    user_followers INT DEFAULT 0,
-    retweet_count INT DEFAULT 0,
-    favorite_count INT DEFAULT 0,
-    reply_count INT DEFAULT 0,
-    quote_count INT DEFAULT 0,
-    lang VARCHAR(16) DEFAULT '',
-    tweet_created_at VARCHAR(64) DEFAULT '',
-    crawl_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_category (category),
-    INDEX idx_severity (severity),
-    INDEX idx_crawl_time (crawl_time),
-    INDEX idx_keyword (keyword),
-    INDEX idx_heat (heat),
-    FULLTEXT INDEX ft_content (title, full_text)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```bash
+python3 account_manager.py
+# 选择 Cookies 方式添加账户（推荐）
+# 需要提供：auth_token, ct0, 用户名
 ```
 
-#### Step 2: 修改配置
+### 7. 访问平台
 
-编辑 `db.py`，填入真实的数据库连接信息：
-```python
-DB_CONFIG = {
-    "host": "localhost",
-    "port": 3306,
-    "user": "你的数据库用户名",
-    "password": "你的数据库密码",
-    "database": "threatpulse",
-    ...
-}
 ```
-
-#### Step 3: 生成认证文件
-
-```python
-# 生成 .auth_config.json
-python3 -c "
-import json, hashlib, secrets
-salt = secrets.token_hex(16)
-password = input('输入管理员密码: ')
-config = {
-    'admin_username': input('输入管理员用户名: '),
-    'password_salt': salt,
-    'password_hash': hashlib.sha256((salt + password).encode()).hexdigest(),
-    'jwt_expire_hours': 24,
-    'rate_limit': {'max_attempts': 5, 'window_seconds': 300, 'lockout_seconds': 900}
-}
-with open('.auth_config.json', 'w') as f:
-    json.dump(config, f, indent=2)
-import os; os.chmod('.auth_config.json', 0o600)
-print('Done')
-"
-
-# 生成 .jwt_secret
-python3 -c "import secrets; open('.jwt_secret','w').write(secrets.token_hex(32)); import os; os.chmod('.jwt_secret', 0o600); print('Done')"
+http://YOUR_SERVER/Th/
 ```
 
 ---
 
 ## 配置说明
 
-### keywords.yml — 搜索关键词
+### 环境变量（.env）
+
+| 变量名 | 说明 | 必填 |
+|--------|------|------|
+| `DB_HOST` | MySQL 主机地址 | 否（默认 127.0.0.1） |
+| `DB_PORT` | MySQL 端口 | 否（默认 3306） |
+| `DB_USER` | MySQL 用户名 | 否（默认 threatpulse） |
+| `DB_PASSWORD` | MySQL 密码 | **是** |
+| `DB_NAME` | 数据库名 | 否（默认 threatpulse） |
+| `DEEPSEEK_API_KEY` | DeepSeek API 密钥 | **是** |
+| `GITHUB_TOKEN` | GitHub Personal Access Token | **是** |
+| `TP_JWT_SECRET` | JWT 签名密钥 | 否（可用 .jwt_secret 文件） |
+
+### 关键词配置（keywords.yml）
 
 ```yaml
-categories:
-  ddos:
-    - "DDoS attack"
-    - "botnet"
-    - ...
-  agent:
-    - "AI agent security"
-    - "MCP protocol"
-    - ...
-  llm:
-    - "GPT-5"
-    - "Claude AI"
-    - ...
+groups:
+  - name: DDoS & Botnet
+    keywords:
+      - "DDoS attack"
+      - "botnet C2"
+      - "volumetric attack"
+      # ...
+
+  - name: AI Agent Security
+    keywords:
+      - "AI agent exploit"
+      - "MCP vulnerability"
+      # ...
 ```
-
-每个关键词对应一次 Twitter 搜索请求。关键词越多，每次爬取耗时越长（受反爬延迟影响）。建议总数控制在 50-80 个。
-
-### config.py — 全局配置
-
-| 配置项 | 说明 | 建议值 |
-|--------|------|--------|
-| `BEARER_TOKEN` | Twitter 公开 Bearer Token | 固定值，一般不变 |
-| `SEARCH_QUERY_ID` | GraphQL queryId | Twitter 更新后需同步更新 |
-| `MAX_TWEETS_PER_KEYWORD` | 每个关键词最大采集数 | 40 |
-| `MIN_DELAY` / `MAX_DELAY` | 请求间随机延迟 | 2.0 / 5.0 秒 |
-| `REQUEST_TIMEOUT` | 请求超时 | 30 秒 |
-| `MAX_RETRIES` | 最大重试次数 | 3 |
-
-### .auth_config.json — 登录认证
-
-```json
-{
-  "admin_username": "管理员用户名",
-  "password_salt": "随机盐值",
-  "password_hash": "SHA256(salt+password) 的哈希值",
-  "jwt_expire_hours": 24,
-  "rate_limit": {
-    "max_attempts": 5,
-    "window_seconds": 300,
-    "lockout_seconds": 900
-  }
-}
-```
-
-⚠️ **此文件不应包含明文密码**，仅存储哈希值。
 
 ---
 
 ## 安全机制
 
-### 认证安全
+### 认证系统
+- **密码存储**: SHA-256(salt + password)，仅存 hash，不存明文
+- **JWT Token**: HttpOnly Cookie，防 XSS 窃取
+- **防暴力破解**: 5 次失败锁定 15 分钟
+- **隐藏文件保护**: Nginx 层拦截所有 `.` 开头文件的访问
 
-| 措施 | 说明 |
-|------|------|
-| 密码哈希 | SHA256 + 随机 Salt，不可逆 |
-| 恒定时间比较 | `hmac.compare_digest` 防时序攻击 |
-| HttpOnly Cookie | Token 不暴露给前端 JS |
-| Token 不返回 | 登录响应中不包含 Token 明文 |
-| JWT Secret 持久化 | 从文件/环境变量加载，重启不变 |
-| 登录延迟 | 失败后 0.5s 延迟，防暴力破解 |
+### 密钥管理
+- 所有密钥通过环境变量注入，不在代码中硬编码
+- `.env`、`.auth_config.json`、`.jwt_secret` 均在 `.gitignore` 中排除
+- `cookies.json`（Twitter 凭证）不纳入版本控制
 
-### IP 频率限制
+---
 
-| 参数 | 默认值 |
-|------|--------|
-| 窗口内最大尝试次数 | 5 次 |
-| 滑动窗口时长 | 300 秒（5分钟） |
-| 锁定时长 | 900 秒（15分钟） |
-| 剩余次数提示 | ≤2 次时提示 |
+## 定时任务
 
-### 文件保护
+三个爬虫错峰运行，避免资源争抢：
 
-- `.auth_config.json` 和 `.jwt_secret` 文件权限 `600`
-- Nginx 层 `location ~ /\. { deny all; }` 阻止下载隐藏文件
-- Flask 层对 `.` 开头路径返回 403（双重防护）
-- 源码中不包含明文密码
+| 时间 | 爬虫 | 脚本 | 日志 |
+|------|------|------|------|
+| `:00` 整点 | Twitter/X | `main.py` | `cron.log` |
+| `:15` | GitHub | `github_scraper.py` | `github_cron.log` |
+| `:30` | CN-SEC | `cnsec_scraper.py` | `cnsec_cron.log` |
+
+---
+
+## 技术实现细节
+
+### Twitter 爬虫反爬策略
+- **GraphQL API**: 直接调用 Twitter 内部 GraphQL 接口，非第三方 API
+- **x-client-transaction-id**: 自行实现的签名生成器（`transaction_id.py`）
+- **Cookie 持久化**: `cookies.json` 存储真实账户 Session
+- **多账户轮换**: 支持多账户自动切换
+- **随机延迟 + 指数退避**: 防触发频率限制
+
+### CN-SEC 爬虫
+- BeautifulSoup 解析 + 分类页面遍历
+- 自动提取文章正文、标签、发布时间
+- `INSERT IGNORE` 去重（基于 `tweet_id = cnsec_{article_id}`）
+
+### GitHub 爬虫
+- **仓库搜索**: 18 个关键词 × 5 大方向，自动获取 README 作为全文
+- **安全公告**: GitHub Advisory Database，包含 CVE 编号和受影响包
+- **质量过滤**: MIN_STARS=3 过滤低质量仓库，RECENT_DAYS=30 保证时效性
+- `INSERT IGNORE` 去重（基于 `tweet_id = github_repo_{id}` / `github_adv_{ghsa_id}`）
+
+### DeepSeek AI 摘要
+- 模型: `deepseek-chat`，temperature=0.3
+- 统一生成 ≤150 字中文摘要
+- 支持批量回填存量情报（`backfill_summary.py`）
+
+### 模糊搜索
+- 后端: 多关键词 AND 搜索，覆盖 title/summary/summary_cn/full_text
+- 前端: 200ms 防抖搜索建议 + 500ms 防抖实际搜索
+- 高亮: 搜索关键词在卡片标题和摘要中高亮显示
+- 建议下拉: 显示匹配字段标记（中文摘要/原文摘要/标题）
 
 ---
 
 ## 注意事项与踩坑记录
 
-### 🔴 高优先级
+### Twitter 相关
+1. **GraphQL queryId 会变更**: Twitter 会不定期更新 queryId，需要从浏览器 Network 面板抓取最新值
+2. **x-client-transaction-id**: 2024 年新增的反爬验证，缺少会返回 403
+3. **Cookie 有效期**: auth_token 有效期约 1 年，ct0 较短，建议定期更新
+4. **cf_clearance**: Cloudflare 验证 Cookie，需从浏览器获取
 
-1. **Twitter Cookie 有效期有限**
-   - Cookie 通常 1-3 个月失效
-   - 失效表现：爬虫日志中出现 401/403 错误
-   - 解决：重新登录 Twitter 获取新 Cookie，更新 `cookies.json`
+### GitHub 相关
+1. **Search API 限制**: 未认证 10 次/分钟，认证后 30 次/分钟
+2. **README 获取**: 部分仓库无 README 或 README 过大，需做容错处理
 
-2. **GraphQL queryId 会变更**
-   - Twitter 不定期更新 queryId
-   - 失效表现：爬虫返回空数据或报错
-   - 解决：从 Twitter 网页版开发者工具中抓取最新的 queryId，更新 `config.py` 中的 `SEARCH_QUERY_ID`
-   - 获取方法：在 Twitter 搜索页面，F12 → Network → 搜索 `SearchTimeline` → 从 URL 中提取 queryId
-
-3. **x-client-transaction-id 验证**
-   - Twitter 新增的反爬机制
-   - `transaction_id.py` 实现了该签名的生成逻辑
-   - 如果 Twitter 更新签名算法，需要同步更新此文件
-
-### 🟡 中优先级
-
-4. **服务器需要能访问 Twitter**
-   - 国内服务器通常无法直接访问 x.com
-   - 解决方案：使用海外服务器，或配置代理
-
-5. **MySQL 全文索引**
-   - `intel_items` 表使用了 `FULLTEXT INDEX`
-   - 需要 MySQL 5.7+ 或 8.0+ 的 InnoDB 引擎
-   - 中文全文搜索需要额外配置 ngram parser（当前以英文为主，影响不大）
-
-6. **Google 翻译 API**
-   - 使用的是免费的 `translate.googleapis.com` 端点
-   - 有请求频率限制，大量翻译可能被限流
-   - 备用方案：内置术语级翻译（`translate_simple` 函数）
-
-### 🟢 低优先级
-
-7. **前端 CDN 依赖**
-   - TailwindCSS、RemixIcon、Google Fonts 从 CDN 加载
-   - 内网环境需要改为本地引用或私有 CDN
-
-8. **日志管理**
-   - `cron.log` 会持续增长，建议定期清理或配置 logrotate
+### 数据库相关
+1. **FULLTEXT 索引**: 需要 MySQL 5.7+ 的 InnoDB 引擎
+2. **字符集**: 确保使用 `utf8mb4` 以支持 emoji 和特殊字符
 
 ---
 
 ## 维护指南
 
-### 日常运维
+### 日常检查
 
 ```bash
-# 查看服务状态
-systemctl status threatpulse.service
-
-# 查看 API 日志
-journalctl -u threatpulse.service -f
+# 检查服务状态
+systemctl status threatpulse
 
 # 查看爬虫日志
-tail -f /data/ThreatPulse/cron.log
+tail -f cron.log           # Twitter
+tail -f github_cron.log    # GitHub
+tail -f cnsec_cron.log     # CN-SEC
 
-# 手动执行爬虫
-cd /data/ThreatPulse && python3 main.py
-
-# 重启 API 服务
-systemctl restart threatpulse.service
-
-# 查看数据库情报数量
-mysql -u threatpulse -p threatpulse -e "SELECT COUNT(*) FROM intel_items;"
+# 查看情报统计
+mysql -u threatpulse -p threatpulse -e "
+  SELECT
+    CASE
+      WHEN tweet_id LIKE 'github_repo_%' THEN 'GitHub Repo'
+      WHEN tweet_id LIKE 'github_adv_%' THEN 'GitHub Advisory'
+      WHEN tweet_id LIKE 'cnsec_%' THEN 'CN-SEC'
+      ELSE 'Twitter'
+    END AS source,
+    COUNT(*) AS count
+  FROM intel_items
+  GROUP BY source
+  ORDER BY count DESC;
+"
 ```
 
 ### 更新 Twitter Cookie
 
 ```bash
-# 1. 使用账户管理工具查看当前状态
-python3 account_manager.py show
-
-# 2. 测试 Cookie 是否有效
-python3 account_manager.py test
-
-# 3. 如果失效，手动编辑 cookies.json
-vim cookies.json
+python3 account_manager.py
+# 选择更新 Cookie 选项
 ```
 
-### 更新 GraphQL queryId
+### 回填中文摘要
 
 ```bash
-# 编辑 config.py，修改 SEARCH_QUERY_ID
-vim config.py
-# 修改后手动测试
-python3 main.py
+# 对缺少中文摘要的存量情报进行回填
+python3 backfill_summary.py
 ```
 
-### 添加/修改搜索关键词
+### 手动触发爬虫
 
 ```bash
-# 编辑关键词配置
-vim keywords.yml
-# 修改后下次定时任务自动生效
+python3 main.py              # Twitter 爬虫
+python3 github_scraper.py    # GitHub 爬虫
+python3 cnsec_scraper.py     # CN-SEC 爬虫
 ```
 
 ---
 
-## 依赖说明
+## License
 
-### Python 包
-
-| 包名 | 用途 |
-|------|------|
-| flask | Web API 框架 |
-| flask-cors | 跨域支持 |
-| pymysql | MySQL 连接 |
-| pyyaml | YAML 配置解析 |
-
-### 系统依赖
-
-| 组件 | 用途 |
-|------|------|
-| MySQL 5.7+ | 数据存储 |
-| Nginx | 反向代理 |
-| crontab | 定时任务 |
-| systemd | 服务管理 |
-
----
-
-## 许可证
-
-本项目仅供学习和研究使用。Twitter 数据采集请遵守相关平台的使用条款。
+MIT License

@@ -1,3 +1,46 @@
+// ===== 搜索关键词高亮工具 =====
+export function highlightText(text, query) {
+    if (!query || !text) return text;
+    const keywords = query.split(/\s+/).filter(k => k.length > 0);
+    if (keywords.length === 0) return text;
+    const escaped = keywords.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const regex = new RegExp(`(${escaped.join('|')})`, 'gi');
+    return text.replace(regex, '<mark class="search-highlight">$1</mark>');
+}
+
+// ===== 搜索建议下拉组件 =====
+export function renderSearchSuggestions(items, query) {
+    if (!items || items.length === 0) return '';
+    const severityLabels = { critical: '严重', high: '高危', medium: '中危', low: '低危', info: '信息' };
+    const categoryLabels = { ddos: 'DDoS', web: 'Web安全', malware: '恶意软件', apt: 'APT', vuln: '漏洞', phishing: '钓鱼', ransomware: '勒索', agent: 'AI Agent', llm: '大模型', general: '综合' };
+
+    return `<div class="search-suggestions">
+        <div class="search-suggestions-header">
+            <i class="ri-sparkling-line text-accent-cyan"></i>
+            <span>搜索建议 · 共 ${items.length} 条匹配</span>
+        </div>
+        ${items.map((item, idx) => {
+            const title = highlightText(item.title || '', query);
+            const snippet = item.summary_cn_snippet
+                ? highlightText(item.summary_cn_snippet, query)
+                : highlightText(item.summary_snippet || '', query);
+            const qLower = query.toLowerCase();
+            const matchField = (item.summary_cn_snippet && item.summary_cn_snippet.toLowerCase().includes(qLower))
+                ? '中文摘要' : (item.summary_snippet && item.summary_snippet.toLowerCase().includes(qLower))
+                ? '原文摘要' : '标题';
+            return `<div class="search-suggestion-item" data-id="${item.id}" data-index="${idx}">
+                <div class="suggestion-title">${title}</div>
+                <div class="suggestion-snippet">${snippet}...</div>
+                <div class="suggestion-meta">
+                    <span class="severity-badge severity-${item.severity}" style="font-size:9px;padding:1px 5px;">${severityLabels[item.severity] || item.severity}</span>
+                    <span class="suggestion-category">${categoryLabels[item.category] || item.category}</span>
+                    <span class="suggestion-match-field"><i class="ri-focus-3-line"></i>匹配: ${matchField}</span>
+                </div>
+            </div>`;
+        }).join('')}
+    </div>`;
+}
+
 /**
  * 安全情报聚合平台 - 组件渲染模块 v2
  * 新增：情报详情增强（来源链接、中文翻译按钮）
@@ -160,14 +203,11 @@ export function renderIntelCard(intel) {
 
 /**
  * 渲染情报详情弹窗内容 - v2 增强版
- * 新增：情报来源链接区块、中文翻译按钮
+ * 新增：情报来源链接区块、中文情报摘要与原文摘要双栏展示
  */
 export function renderIntelDetail(intel) {
     const severityLabels = { critical: '严重', high: '高危', medium: '中危', low: '低危', info: '信息' };
     const categoryLabels = { ddos: 'DDoS 攻击', web: 'Web 安全', malware: '恶意软件', apt: 'APT 攻击', vuln: '漏洞情报', phishing: '钓鱼攻击', ransomware: '勒索软件', agent: 'AI Agent', llm: '大模型技术', general: '综合情报' };
-
-    // 转义文本用于 data 属性
-    const escapedSummary = intel.summary.replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
     return `
     <div class="space-y-5">
@@ -178,21 +218,24 @@ export function renderIntelDetail(intel) {
             <span class="text-xs text-gray-500 flex items-center gap-1"><i class="ri-calendar-line"></i>${intel.time.dateTime || intel.time}<span class="text-gray-600">${intel.time.relative ? " · " + intel.time.relative : ""}</span></span>
         </div>
 
-        <!-- 情报摘要 -->
+        <!-- 中文情报摘要 -->
+        ${intel.summaryCn ? `
         <div>
-            <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">情报摘要</h4>
-            <p class="text-sm text-gray-300 leading-relaxed">${intel.summary}</p>
-        </div>
-
-        <!-- 🆕 中文翻译区块 -->
-        <div>
-            <div class="flex items-center gap-2 mb-2">
-                <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">中文翻译</h4>
-                <button class="translate-btn" data-text="${escapedSummary}" data-target="translation-${intel.id}">
-                    <i class="ri-translate-2 mr-1"></i>点击翻译
-                </button>
+            <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <i class="ri-translate-2 text-accent-cyan"></i>中文情报摘要
+            </h4>
+            <div class="bg-dark-900/50 rounded-lg p-3 border border-accent-cyan/10">
+                <p class="text-sm text-gray-200 leading-relaxed">${intel.summaryCn}</p>
             </div>
-            <div id="translation-${intel.id}" class="hidden bg-dark-900/50 rounded-lg p-3 border border-white/5">
+        </div>` : ''}
+
+        <!-- 原文摘要 -->
+        <div>
+            <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <i class="ri-file-text-line text-gray-500"></i>原文摘要
+            </h4>
+            <div class="bg-dark-900/30 rounded-lg p-3 border border-white/5">
+                <p class="text-sm text-gray-400 leading-relaxed" style="white-space: pre-wrap; word-break: break-word;">${intel.summary}</p>
             </div>
         </div>
 

@@ -13,7 +13,8 @@ import {
 import {
     renderStatCards, renderCategories, renderHotAttacks,
     renderTagCloud, renderKeywordTrends, renderThreatLevels,
-    renderIntelCard, renderIntelDetail, renderSkeletons
+    renderIntelCard, renderIntelDetail, renderSkeletons,
+    highlightText, renderSearchSuggestions
 } from './components.js';
 
 // ===== 应用状态 =====
@@ -161,8 +162,10 @@ function renderIntelFeed() {
         // 转换后端数据格式到前端组件格式
         const cardData = {
             id: intel.id,
-            title: intel.title,
-            summary: intel.summary || intel.full_text || '',
+            title: state.searchQuery ? highlightText(intel.title, state.searchQuery) : intel.title,
+            summary: state.searchQuery
+                ? highlightText(intel.summary_cn || intel.summary || intel.full_text || '', state.searchQuery)
+                : (intel.summary_cn || intel.summary || intel.full_text || ''),
             category: intel.category,
             severity: intel.severity,
             source: intel.source || 'Twitter',
@@ -230,15 +233,54 @@ function formatTime(timeStr) {
 
 // ===== 事件绑定 =====
 function bindEvents() {
-    // 搜索
+    // 搜索 + 搜索建议
     let searchTimer = null;
+    let suggestTimer = null;
     dom.searchInput.addEventListener('input', (e) => {
+        const query = e.target.value.trim();
+
+        // 搜索建议（200ms 防抖）
+        clearTimeout(suggestTimer);
+        if (query.length >= 2) {
+            suggestTimer = setTimeout(async () => {
+                try {
+                    const resp = await fetch(`/Th/api/search/suggest?q=${encodeURIComponent(query)}`, {
+                        credentials: 'include'
+                    });
+                    const data = await resp.json();
+                    if (data.code === 0 && data.data.length > 0) {
+                        showSearchSuggestions(data.data, query);
+                    } else {
+                        hideSearchSuggestions();
+                    }
+                } catch(err) {
+                    hideSearchSuggestions();
+                }
+            }, 200);
+        } else {
+            hideSearchSuggestions();
+        }
+
+        // 实际搜索（500ms 防抖）
         clearTimeout(searchTimer);
         searchTimer = setTimeout(() => {
-            state.searchQuery = e.target.value.trim();
+            state.searchQuery = query;
             state.currentPage = 1;
             refreshData();
         }, 500);
+    });
+
+    // 搜索框聚焦/失焦
+    dom.searchInput.addEventListener('focus', () => {
+        const q = dom.searchInput.value.trim();
+        if (q.length >= 2 && document.getElementById('searchSuggestions')) {
+            document.getElementById('searchSuggestions').classList.remove('hidden');
+        }
+    });
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.search-suggestions') && !e.target.closest('#searchInput')) {
+            hideSearchSuggestions();
+        }
     });
 
     // 键盘快捷键
@@ -429,7 +471,9 @@ function openModal(intel) {
     const detail = {
         id: intel.id,
         title: intel.title,
-        summary: intel.full_text || intel.summary || '',
+        summary: intel.summary || intel.full_text || '',
+        summaryCn: intel.summary_cn || '',
+        fullText: intel.full_text || '',
         category: intel.category,
         severity: intel.severity,
         source: intel.source || 'Twitter',

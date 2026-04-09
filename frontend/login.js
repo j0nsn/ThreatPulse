@@ -3,7 +3,7 @@
  * 安全加固版：支持 IP 锁定倒计时提示
  */
 
-const BASE_PATH = "/Th"  // 根据 Nginx 配置修改此路径;
+const BASE_PATH = "/Th";
 
 // ============== 背景粒子效果 ==============
 function createParticles() {

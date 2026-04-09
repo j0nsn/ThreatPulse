@@ -1,3 +1,4 @@
+import os
 """
 数据库操作层 - ThreatPulse 安全情报聚合平台
 """
@@ -11,9 +12,9 @@ logger = logging.getLogger(__name__)
 DB_CONFIG = {
     "host": "localhost",
     "port": 3306,
-    "user": "YOUR_DB_USER",
-    "password": "YOUR_DB_PASSWORD_HERE",
-    "database": "threatpulse",
+    "user": os.environ.get("DB_USER", "threatpulse"),
+    "password": os.environ.get("DB_PASSWORD", ""),
+    "database": os.environ.get("DB_NAME", "threatpulse"),
     "charset": "utf8mb4",
     "cursorclass": pymysql.cursors.DictCursor,
 }
@@ -132,20 +133,22 @@ def insert_tweet(tweet: dict, keyword: str) -> bool:
             with conn.cursor() as cursor:
                 sql = """
                 INSERT IGNORE INTO intel_items
-                (tweet_id, title, summary, full_text, category, severity,
+                (tweet_id, title, summary, summary_cn, full_text, category, severity,
                  source, source_icon, tags, heat, comments, ioc, link,
                  keyword, user_name, user_screen_name, user_followers,
                  retweet_count, favorite_count, reply_count, quote_count,
                  lang, tweet_created_at)
                 VALUES
-                (%s, %s, %s, %s, %s, %s,
+                (%s, %s, %s, %s, %s, %s, %s,
                  %s, %s, %s, %s, %s, %s, %s,
                  %s, %s, %s, %s,
                  %s, %s, %s, %s,
                  %s, %s)
                 """
                 params = (
-                    tweet_id, title, full_text, full_text,
+                    tweet_id, title, full_text,
+                    tweet.get("summary_cn", None),
+                    full_text,
                     classify["category"], classify["severity"],
                     f"Twitter @{user.get('screen_name', 'unknown')}",
                     "ri-twitter-x-line",
@@ -202,8 +205,14 @@ def query_intel(category=None, severity=None, keyword=None, search=None,
         params.append(f"%{keyword}%")
 
     if search:
-        conditions.append("(title LIKE %s OR summary LIKE %s OR full_text LIKE %s)")
-        params.extend([f"%{search}%"] * 3)
+        # 支持多关键词 AND 搜索（空格分隔）
+        keywords_list = [kw.strip() for kw in search.split() if kw.strip()]
+        if keywords_list:
+            kw_conditions = []
+            for kw in keywords_list:
+                kw_conditions.append("(title LIKE %s OR summary LIKE %s OR summary_cn LIKE %s OR full_text LIKE %s)")
+                params.extend([f"%{kw}%"] * 4)
+            conditions.append("(" + " AND ".join(kw_conditions) + ")")
 
     # 时间过滤
     time_sql = {
@@ -243,6 +252,8 @@ def query_intel(category=None, severity=None, keyword=None, search=None,
 
                 # 处理 JSON 字段
                 for item in items:
+                    # 保留原文摘要(summary)和中文摘要(summary_cn)两个字段
+                    # 前端列表展示用 summary_cn，详情弹窗同时展示两者
                     if isinstance(item.get("tags"), str):
                         try:
                             item["tags"] = json.loads(item["tags"])
@@ -406,4 +417,81 @@ def get_hot_attacks(time_filter="today", limit=8):
                 return result
     except Exception as e:
         logger.error(f"获取热点攻击失败: {e}")
+        return []
+
+
+def update_summary_cn(item_id: int, summary_cn: str) -> bool:
+    """更新指定情报的中文摘要"""
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "UPDATE intel_items SET summary_cn = %s WHERE id = %s",
+                    (summary_cn, item_id)
+                )
+                return cursor.rowcount > 0
+    except Exception as e:
+        logger.error(f"更新中文摘要失败 [id={item_id}]: {e}")
+        return False
+
+
+def get_items_without_summary_cn(limit: int = 50) -> list:
+    """获取没有中文摘要的情报（用于存量回填）"""
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """SELECT id, title, summary, full_text
+                       FROM intel_items
+                       WHERE summary_cn IS NULL OR summary_cn = ''
+                       ORDER BY id DESC
+                       LIMIT %s""",
+                    (limit,)
+                )
+                return cursor.fetchall()
+    except Exception as e:
+        logger.error(f"查询无中文摘要情报失败: {e}")
+        return []
+
+
+def check_duplicate_by_summary_cn(summary_cn: str) -> bool:
+    """通过中文摘要检查是否重复（模糊匹配）"""
+    if not summary_cn or len(summary_cn) < 10:
+        return False
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                # 取摘要的核心部分（前30字）做模糊匹配
+                core = summary_cn[:30]
+                cursor.execute(
+                    "SELECT 1 FROM intel_items WHERE summary_cn LIKE %s LIMIT 1",
+                    (f"%{core}%",)
+                )
+                return cursor.fetchone() is not None
+    except Exception as e:
+        logger.error(f"中文摘要去重检查失败: {e}")
+        return False
+
+
+def search_suggest(query, limit=8):
+    """搜索建议：基于 title、summary_cn、summary 模糊匹配"""
+    if not query or len(query) < 2:
+        return []
+    try:
+        with get_connection() as conn:
+            with conn.cursor(pymysql.cursors.DictCursor) as cursor:
+                cursor.execute("""
+                    SELECT id, title,
+                           LEFT(COALESCE(summary_cn, ''), 80) AS summary_cn_snippet,
+                           LEFT(COALESCE(summary, ''), 80) AS summary_snippet,
+                           category, severity
+                    FROM intel_items
+                    WHERE title LIKE %s OR summary_cn LIKE %s OR summary LIKE %s
+                    ORDER BY crawl_time DESC
+                    LIMIT %s
+                """, [f"%{query}%", f"%{query}%", f"%{query}%", limit])
+                results = cursor.fetchall()
+                return results
+    except Exception as e:
+        logging.error(f"search_suggest error: {e}")
         return []

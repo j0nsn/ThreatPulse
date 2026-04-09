@@ -1,3 +1,4 @@
+import os
 """
 CN-SEC 数据库操作层 - ThreatPulse 安全情报聚合平台
 复用 intel_items 表，使用 tweet_id 字段存储 "cnsec_<article_id>" 作为唯一标识
@@ -13,9 +14,9 @@ logger = logging.getLogger("cnsec_db")
 DB_CONFIG = {
     "host": "localhost",
     "port": 3306,
-    "user": "YOUR_DB_USER",
-    "password": "YOUR_DB_PASSWORD_HERE",
-    "database": "threatpulse",
+    "user": os.environ.get("DB_USER", "threatpulse"),
+    "password": os.environ.get("DB_PASSWORD", ""),
+    "database": os.environ.get("DB_NAME", "threatpulse"),
     "charset": "utf8mb4",
     "cursorclass": pymysql.cursors.DictCursor,
 }
@@ -80,13 +81,13 @@ def insert_cnsec_article(article: dict) -> bool:
             with conn.cursor() as cursor:
                 sql = """
                 INSERT IGNORE INTO intel_items
-                (tweet_id, title, summary, full_text, category, severity,
+                (tweet_id, title, summary, summary_cn, full_text, category, severity,
                  source, source_icon, tags, heat, comments, ioc, link,
                  keyword, user_name, user_screen_name, user_followers,
                  retweet_count, favorite_count, reply_count, quote_count,
                  lang, tweet_created_at)
                 VALUES
-                (%s, %s, %s, %s, %s, %s,
+                (%s, %s, %s, %s, %s, %s, %s,
                  %s, %s, %s, %s, %s, %s, %s,
                  %s, %s, %s, %s,
                  %s, %s, %s, %s,
@@ -96,6 +97,7 @@ def insert_cnsec_article(article: dict) -> bool:
                     unique_id,
                     article.get("title", ""),
                     article.get("summary", ""),
+                    article.get("summary_cn", None),
                     article.get("full_text", ""),
                     article.get("category", "general"),
                     article.get("severity", "low"),

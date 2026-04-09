@@ -24,3 +24,8 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+
+# 环境变量和额外日志
+.env
+github_cron.log
+backfill.log
