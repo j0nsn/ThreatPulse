@@ -12,9 +12,9 @@ logger = logging.getLogger(__name__)
 DB_CONFIG = {
     "host": "localhost",
     "port": 3306,
-    "user": os.environ.get("DB_USER", "threatpulse"),
+    "user": "threatpulse",
     "password": os.environ.get("DB_PASSWORD", ""),
-    "database": os.environ.get("DB_NAME", "threatpulse"),
+    "database": "threatpulse",
     "charset": "utf8mb4",
     "cursorclass": pymysql.cursors.DictCursor,
 }
@@ -184,7 +184,7 @@ def batch_insert_tweets(tweets: list, keyword: str) -> int:
     return new_count
 
 
-def query_intel(category=None, severity=None, keyword=None, search=None,
+def query_intel(category=None, severity=None, source=None, keyword=None, search=None,
                 time_filter="today", sort_by="latest", page=1, page_size=20):
     """
     查询情报数据
@@ -199,6 +199,10 @@ def query_intel(category=None, severity=None, keyword=None, search=None,
     if severity:
         conditions.append("severity = %s")
         params.append(severity)
+
+    if source and source != "all":
+        conditions.append("source LIKE %s")
+        params.append(f"%{source}%")
 
     if keyword:
         conditions.append("keyword LIKE %s")
@@ -608,6 +612,8 @@ def get_hot_topics(time_range="daily", limit=10):
                             "id": item["id"],
                             "title": item["title"],
                             "source": item.get("source", ""),
+                            "link": item.get("link", ""),
+                            "source_icon": item.get("source_icon", ""),
                         })
                         # 如果新情报的 severity 更高，更新
                         sev_order = {"critical": 5, "high": 4, "medium": 3, "low": 2, "info": 1}
@@ -628,6 +634,8 @@ def get_hot_topics(time_range="daily", limit=10):
                                 "id": item["id"],
                                 "title": item["title"],
                                 "source": item.get("source", ""),
+                                "link": item.get("link", ""),
+                                "source_icon": item.get("source_icon", ""),
                             }],
                         }
 
@@ -657,7 +665,7 @@ def get_hot_topics(time_range="daily", limit=10):
                         "first_time": group["first_time"],
                         "link": group["link"],
                         "related_count": len(group["items"]),
-                        "related_items": group["items"][:5],
+                        "related_items": group["items"][:10],
                     })
 
                 result.sort(key=lambda x: x["hot_score"], reverse=True)
@@ -704,3 +712,71 @@ def _share_key_entity(s1, s2):
         return True
 
     return False
+
+
+def get_source_list():
+    """
+    获取所有情报源列表（按数量排序）
+    返回格式: [{"source": "Twitter @xxx", "source_group": "Twitter", "source_icon": "ri-twitter-x-line", "count": 100}, ...]
+    """
+    # 定义情报源分组规则：source 字段 → 分组名 + 图标
+    SOURCE_GROUPS = {
+        "Twitter": {"icon": "ri-twitter-x-line", "match": "Twitter"},
+        "CN-SEC": {"icon": "ri-newspaper-line", "match": "CN-SEC"},
+        "GitHub Repo": {"icon": "ri-github-line", "match": "GitHub Repo"},
+        "GitHub Advisory": {"icon": "ri-shield-keyhole-line", "match": "GitHub Advisory"},
+        "FreeBuf": {"icon": "ri-fire-line", "match": "FreeBuf"},
+        "安全客": {"icon": "ri-shield-star-line", "match": "安全客"},
+        "The Hacker News": {"icon": "ri-newspaper-line", "match": "Hacker News"},
+        "奇安信 XLab": {"icon": "ri-microscope-line", "match": "XLab"},
+    }
+
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                # 按 source 分组统计
+                cursor.execute("""
+                    SELECT source, source_icon, COUNT(*) AS cnt
+                    FROM intel_items
+                    GROUP BY source, source_icon
+                    ORDER BY cnt DESC
+                """)
+                rows = cursor.fetchall()
+
+                # 聚合到分组
+                group_data = {}
+                for row in rows:
+                    src = row["source"]
+                    cnt = row["cnt"]
+                    icon = row.get("source_icon", "ri-article-line")
+
+                    # 匹配分组
+                    matched_group = None
+                    for group_name, group_info in SOURCE_GROUPS.items():
+                        if group_info["match"] in src:
+                            matched_group = group_name
+                            icon = group_info["icon"]
+                            break
+
+                    if not matched_group:
+                        matched_group = src  # 未匹配的直接用原始 source
+
+                    if matched_group not in group_data:
+                        group_data[matched_group] = {"icon": icon, "count": 0}
+                    group_data[matched_group]["count"] += cnt
+
+                # 转为列表并排序
+                result = []
+                for group_name, info in group_data.items():
+                    result.append({
+                        "source_group": group_name,
+                        "source_icon": info["icon"],
+                        "count": info["count"],
+                    })
+
+                result.sort(key=lambda x: x["count"], reverse=True)
+                return result
+
+    except Exception as e:
+        logger.error(f"获取情报源列表失败: {e}")
+        return []

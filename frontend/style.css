@@ -378,6 +378,60 @@
     flex-shrink: 0;
 }
 
+/* ===== 🆕 情报源筛选按钮 ===== */
+.source-filter-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.05);
+    background: rgba(255,255,255,0.03);
+    color: #9ca3af;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.source-filter-btn:hover {
+    background: rgba(255,255,255,0.06);
+    color: #d1d5db;
+    border-color: rgba(255,255,255,0.1);
+}
+
+.source-filter-btn.active {
+    background: rgba(6, 182, 212, 0.12);
+    color: #22d3ee;
+    border-color: rgba(6, 182, 212, 0.25);
+    font-weight: 500;
+}
+
+.source-filter-btn i {
+    font-size: 12px;
+    opacity: 0.7;
+}
+
+.source-filter-btn.active i {
+    opacity: 1;
+}
+
+.source-filter-count {
+    font-size: 9px;
+    padding: 0 4px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.06);
+    color: #6b7280;
+    min-width: 16px;
+    text-align: center;
+    line-height: 16px;
+}
+
+.source-filter-btn.active .source-filter-count {
+    background: rgba(6, 182, 212, 0.15);
+    color: #22d3ee;
+}
+
 /* ===== 🆕 翻译按钮 ===== */
 .translate-btn {
     display: inline-flex;
@@ -584,6 +638,131 @@ mark.search-highlight {
 
 .hot-topic-item:hover {
     background: rgba(245, 158, 11, 0.06);
+}
+
+.hot-topic-item.hot-topic-expanded {
+    background: rgba(245, 158, 11, 0.08);
+    border-bottom: 1px solid rgba(245, 158, 11, 0.12);
+}
+
+/* 展开提示 */
+.hot-topic-toggle-hint {
+    color: #fbbf24;
+    opacity: 0.5;
+    transition: opacity 0.2s;
+    cursor: pointer;
+}
+
+.hot-topic-item:hover .hot-topic-toggle-hint {
+    opacity: 1;
+}
+
+.hot-topic-arrow {
+    transition: transform 0.25s ease;
+    font-size: 14px;
+}
+
+/* 详情面板 */
+.hot-topic-detail {
+    margin-top: 8px;
+    margin-left: 28px;
+    padding: 8px 10px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    animation: hotTopicDetailFadeIn 0.2s ease;
+}
+
+@keyframes hotTopicDetailFadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.hot-topic-detail-header {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    color: #fbbf24;
+    margin-bottom: 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.hot-topic-detail-list {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.hot-topic-detail-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px;
+    border-radius: 4px;
+    transition: background 0.15s;
+}
+
+.hot-topic-detail-item:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.hot-topic-detail-idx {
+    font-size: 9px;
+    color: #6b7280;
+    min-width: 14px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.hot-topic-detail-link {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: #d1d5db;
+    text-decoration: none;
+    flex: 1;
+    min-width: 0;
+    transition: color 0.15s;
+}
+
+.hot-topic-detail-link:hover {
+    color: #fbbf24;
+}
+
+.hot-topic-detail-link.no-link {
+    color: #9ca3af;
+    cursor: default;
+}
+
+.hot-topic-detail-link i:first-child {
+    font-size: 12px;
+    flex-shrink: 0;
+    opacity: 0.6;
+}
+
+.hot-topic-external-icon {
+    font-size: 10px;
+    opacity: 0;
+    flex-shrink: 0;
+    transition: opacity 0.15s;
+    color: #fbbf24;
+}
+
+.hot-topic-detail-link:hover .hot-topic-external-icon {
+    opacity: 1;
+}
+
+.hot-topic-detail-source {
+    font-size: 9px;
+    color: #4b5563;
+    flex-shrink: 0;
+    max-width: 60px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* Hot Topics 周期切换按钮 */

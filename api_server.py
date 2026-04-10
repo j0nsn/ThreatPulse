@@ -20,7 +20,7 @@ from flask_cors import CORS
 from db import (
     query_intel, get_stats, get_hot_keywords,
     get_tag_cloud, get_hot_attacks, search_suggest,
-    get_github_trending, get_hot_topics
+    get_github_trending, get_hot_topics, get_source_list
 )
 
 logging.basicConfig(
@@ -397,6 +397,7 @@ def api_intel():
     """查询情报列表"""
     category = request.args.get("category", "all")
     severity = request.args.get("severity")
+    source = request.args.get("source")
     keyword = request.args.get("keyword")
     search = request.args.get("search")
     time_filter = request.args.get("time_filter", "all")
@@ -405,7 +406,7 @@ def api_intel():
     page_size = int(request.args.get("page_size", 20))
 
     result = query_intel(
-        category=category, severity=severity, keyword=keyword,
+        category=category, severity=severity, source=source, keyword=keyword,
         search=search, time_filter=time_filter, sort_by=sort_by,
         page=page, page_size=page_size
     )
@@ -602,6 +603,14 @@ def api_hot_topics():
         time_range = "daily"
     topics = get_hot_topics(time_range, limit)
     return jsonify({"code": 0, "data": topics})
+
+
+@app.route("/api/sources", methods=["GET"])
+@login_required
+def api_sources():
+    """获取所有情报源列表（用于前端筛选）"""
+    sources = get_source_list()
+    return jsonify({"code": 0, "data": sources})
 
 
 if __name__ == "__main__":

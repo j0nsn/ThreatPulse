@@ -196,7 +196,7 @@ class TwitterScraper:
 
             return {
                 "tweet_id": tweet_id,
-                "created_at": user_core.get("created_at") or legacy.get("created_at", ""),
+                "created_at": legacy.get("created_at", ""),
                 "full_text": legacy.get("full_text", ""),
                 "user": {
                     "id": user_results.get("rest_id", ""),

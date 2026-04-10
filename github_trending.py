@@ -174,35 +174,38 @@ def get_repo_stars_history(owner, repo):
 
 
 def translate_description(text):
-    """用 DeepSeek 翻译描述为中文"""
+    """用 Google 翻译免费 API 翻译描述为中文（替代 DeepSeek，零成本）"""
     if not text:
         return ""
 
-    api_key = os.environ.get("DEEPSEEK_API_KEY", "")
-    if not api_key:
-        return ""
-
     try:
-        url = "https://api.deepseek.com/chat/completions"
-        payload = json.dumps({
-            "model": "deepseek-chat",
-            "messages": [
-                {"role": "system", "content": "你是一个翻译助手。将以下GitHub项目描述翻译为简洁的中文，不超过100字。只输出翻译结果，不要任何解释。"},
-                {"role": "user", "content": text}
-            ],
-            "temperature": 0.3,
-            "max_tokens": 200,
-        }).encode("utf-8")
-
-        req = urllib.request.Request(url, data=payload, method="POST")
-        req.add_header("Content-Type", "application/json")
-        req.add_header("Authorization", f"Bearer {api_key}")
-
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        import urllib.parse as _urlparse
+        text_truncated = text[:200]
+        url = "https://translate.googleapis.com/translate_a/single"
+        params = {
+            "client": "gtx",
+            "sl": "auto",
+            "tl": "zh-CN",
+            "dt": "t",
+            "q": text_truncated,
+        }
+        full_url = url + "?" + _urlparse.urlencode(params)
+        req = urllib.request.Request(full_url)
+        req.add_header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+        with urllib.request.urlopen(req, timeout=15) as resp:
             data = json.loads(resp.read().decode("utf-8"))
-            return data["choices"][0]["message"]["content"].strip()
+            translated_parts = []
+            if data and data[0]:
+                for part in data[0]:
+                    if part[0]:
+                        translated_parts.append(part[0])
+            result = "".join(translated_parts).strip()
+            # 截断到80字
+            if len(result) > 80:
+                result = result[:80] + "..."
+            return result
     except Exception as e:
-        logger.error(f"翻译失败: {e}")
+        logger.error(f"Google翻译失败: {e}")
         return ""
 
 

@@ -67,7 +67,7 @@ MAX_REPOS_PER_QUERY = 10
 MIN_STARS = 3
 
 # 仅获取最近 N 天内更新的仓库（保证情报时效性）
-RECENT_DAYS = 30
+RECENT_DAYS = 14
 
 # GitHub Advisory 每次获取条数
 ADVISORY_PER_PAGE = 20
@@ -215,7 +215,7 @@ def get_repo_readme(full_name: str) -> str:
         content = re.sub(r'<img[^>]*>', '', content)
         content = re.sub(r'</?[a-zA-Z][^>]*>', '', content)
         # 截断
-        return content[:3000]
+        return content[:1500]
     except Exception:
         return ""
 
@@ -376,9 +376,9 @@ def _get_db_module():
     DB_CONFIG = {
         "host": "localhost",
         "port": 3306,
-        "user": os.environ.get("DB_USER", "threatpulse"),
+        "user": "threatpulse",
         "password": os.environ.get("DB_PASSWORD", ""),
-        "database": os.environ.get("DB_NAME", "threatpulse"),
+        "database": "threatpulse",
         "charset": "utf8mb4",
         "cursorclass": pymysql.cursors.DictCursor,
     }
@@ -636,6 +636,18 @@ def process_advisories():
     for adv in advisories:
         unique_id = f"github_adv_{adv['ghsa_id']}"
         if not item_exists(unique_id):
+            # 时间过滤：跳过超过 RECENT_DAYS 天前发布的公告
+            published_at = adv.get("published_at", "")
+            if published_at:
+                try:
+                    # GitHub API 返回 ISO 8601 格式: "2026-04-09T12:00:00Z"
+                    pub_dt = datetime.strptime(published_at[:19], "%Y-%m-%dT%H:%M:%S")
+                    cutoff = datetime.utcnow() - timedelta(days=RECENT_DAYS)
+                    if pub_dt < cutoff:
+                        logger.info(f"  🕐 跳过旧公告 {adv['ghsa_id']} (发布于 {published_at[:10]})")
+                        continue
+                except ValueError:
+                    pass
             adv["_unique_id"] = unique_id
             new_advisories.append(adv)
 

@@ -425,9 +425,42 @@ export function renderHotTopics(container, topics) {
         const rankClass = i < 3 ? ['text-red-400 bg-red-500/15', 'text-orange-400 bg-orange-500/15', 'text-yellow-400 bg-yellow-500/15'][i] : 'text-gray-500 bg-dark-600';
         const sevClass = severityColors[topic.severity] || severityColors.info;
 
+        // 构建关联情报列表
+        const relatedItems = topic.related_items || [];
+        const relatedHtml = relatedItems.length > 0 ? `
+            <div class="hot-topic-detail" id="hotTopicDetail_${i}" style="display:none;">
+                <div class="hot-topic-detail-header">
+                    <i class="ri-links-line"></i>
+                    <span>关联情报（${topic.related_count || relatedItems.length}篇）</span>
+                </div>
+                <div class="hot-topic-detail-list">
+                    ${relatedItems.map((item, j) => {
+                        const sourceIcon = item.source_icon || 'ri-article-line';
+                        const link = item.link || '#';
+                        const hasLink = item.link && item.link !== '#' && item.link.trim() !== '';
+                        return `
+                        <div class="hot-topic-detail-item">
+                            <span class="hot-topic-detail-idx">${j + 1}</span>
+                            ${hasLink
+                                ? `<a href="${link}" target="_blank" rel="noopener noreferrer" class="hot-topic-detail-link" title="${item.title || ''}">
+                                    <i class="${sourceIcon}"></i>
+                                    <span class="truncate">${item.title || '无标题'}</span>
+                                    <i class="ri-external-link-line hot-topic-external-icon"></i>
+                                  </a>`
+                                : `<span class="hot-topic-detail-link no-link" title="${item.title || ''}">
+                                    <i class="${sourceIcon}"></i>
+                                    <span class="truncate">${item.title || '无标题'}</span>
+                                  </span>`
+                            }
+                            <span class="hot-topic-detail-source">${item.source || ''}</span>
+                        </div>`;
+                    }).join('')}
+                </div>
+            </div>` : '';
+
         return `
-        <div class="hot-topic-item group">
-            <div class="flex items-start gap-2.5">
+        <div class="hot-topic-item group" data-topic-idx="${i}">
+            <div class="flex items-start gap-2.5 hot-topic-header">
                 <span class="w-5 h-5 rounded text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5 ${rankClass}">${i + 1}</span>
                 <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-1.5 mb-1 flex-wrap">
@@ -440,9 +473,11 @@ export function renderHotTopics(container, topics) {
                         <span class="flex items-center gap-0.5"><i class="ri-fire-line text-orange-500/60"></i>${topic.hot_score}</span>
                         <span class="flex items-center gap-0.5"><i class="ri-database-2-line"></i>${topic.source_count}源</span>
                         ${topic.sources ? `<span class="truncate max-w-[120px]">${topic.sources.slice(0, 2).join(' · ')}</span>` : ''}
+                        ${relatedItems.length > 0 ? `<span class="hot-topic-toggle-hint flex items-center gap-0.5"><i class="ri-arrow-down-s-line hot-topic-arrow"></i>详情</span>` : ''}
                     </div>
                 </div>
             </div>
+            ${relatedHtml}
         </div>`;
     }).join('');
 }

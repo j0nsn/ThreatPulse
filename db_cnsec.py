@@ -14,9 +14,9 @@ logger = logging.getLogger("cnsec_db")
 DB_CONFIG = {
     "host": "localhost",
     "port": 3306,
-    "user": os.environ.get("DB_USER", "threatpulse"),
+    "user": "threatpulse",
     "password": os.environ.get("DB_PASSWORD", ""),
-    "database": os.environ.get("DB_NAME", "threatpulse"),
+    "database": "threatpulse",
     "charset": "utf8mb4",
     "cursorclass": pymysql.cursors.DictCursor,
 }

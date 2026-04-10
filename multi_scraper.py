@@ -32,6 +32,9 @@ from deepseek_summarizer import generate_summary
 # 每个数据源最多采集多少篇
 MAX_ARTICLES_PER_SOURCE = 30
 
+# 只接收最近 N 天内发布的文章
+MAX_AGE_DAYS = 3
+
 # 请求配置
 REQUEST_TIMEOUT = 30
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
@@ -60,6 +63,41 @@ session.headers.update({
 def polite_delay():
     """礼貌延迟"""
     time.sleep(random.uniform(MIN_DELAY, MAX_DELAY))
+
+
+def is_article_too_old(publish_time: str, max_age_days: int = MAX_AGE_DAYS) -> bool:
+    """
+    检查文章是否超过最大允许天数
+    支持多种时间格式：
+      - "2026-04-09 08:06:06"
+      - "2026-04-09T08:06:06Z"
+      - "2026-04-09"
+    返回 True 表示文章太旧，应该跳过
+    """
+    if not publish_time:
+        return False  # 没有时间信息，不过滤
+
+    cutoff = datetime.now() - timedelta(days=max_age_days)
+
+    for fmt in ["%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S%z",
+                "%Y-%m-%d", "%Y-%m-%dT%H:%M:%S+00:00"]:
+        try:
+            pub_dt = datetime.strptime(publish_time[:26], fmt)
+            if pub_dt.tzinfo:
+                pub_dt = pub_dt.replace(tzinfo=None)
+            return pub_dt < cutoff
+        except ValueError:
+            continue
+
+    # 尝试 RFC 2822 格式 (RSS feeds)
+    try:
+        pub_dt = parsedate_to_datetime(publish_time)
+        pub_dt = pub_dt.replace(tzinfo=None)
+        return pub_dt < cutoff
+    except Exception:
+        pass
+
+    return False  # 解析失败不过滤
 
 
 def strip_html(text: str) -> str:
@@ -298,6 +336,11 @@ class FreeBufScraper:
             if article_exists_by_tweet_id(unique_id):
                 continue
 
+            # 时间过滤：跳过超过 MAX_AGE_DAYS 天前发布的文章
+            if is_article_too_old(art.get("publish_time", "")):
+                logger.info(f"  🕐 [FreeBuf] 跳过旧文章: {art['title'][:40]} (发布于 {art.get('publish_time', '?')})")
+                continue
+
             logger.info(f"  📰 [{i}/{len(articles)}] {art['title'][:50]}")
 
             classify = classify_article(art["title"], art["summary"], art.get("tags", []))
@@ -410,6 +453,11 @@ class AnquankeScraper:
         for i, art in enumerate(articles, 1):
             unique_id = f"{self.ID_PREFIX}{art['article_id']}"
             if article_exists_by_tweet_id(unique_id):
+                continue
+
+            # 时间过滤：跳过超过 MAX_AGE_DAYS 天前发布的文章
+            if is_article_too_old(art.get("publish_time", "")):
+                logger.info(f"  🕐 [安全客] 跳过旧文章: {art['title'][:40]} (发布于 {art.get('publish_time', '?')})")
                 continue
 
             logger.info(f"  📰 [{i}/{len(articles)}] {art['title'][:50]}")
@@ -529,6 +577,11 @@ class HackerNewsScraper:
         for i, art in enumerate(articles, 1):
             unique_id = f"{self.ID_PREFIX}{art['article_id']}"
             if article_exists_by_tweet_id(unique_id):
+                continue
+
+            # 时间过滤：跳过超过 MAX_AGE_DAYS 天前发布的文章
+            if is_article_too_old(art.get("publish_time", "")):
+                logger.info(f"  🕐 [THN] 跳过旧文章: {art['title'][:40]} (发布于 {art.get('publish_time', '?')})")
                 continue
 
             logger.info(f"  📰 [{i}/{len(articles)}] {art['title'][:60]}")
@@ -651,6 +704,11 @@ class QianxinXLabScraper:
         for i, art in enumerate(articles, 1):
             unique_id = f"{self.ID_PREFIX}{art['article_id']}"
             if article_exists_by_tweet_id(unique_id):
+                continue
+
+            # 时间过滤：跳过超过 MAX_AGE_DAYS 天前发布的文章
+            if is_article_too_old(art.get("publish_time", "")):
+                logger.info(f"  🕐 [XLab] 跳过旧文章: {art['title'][:40]} (发布于 {art.get('publish_time', '?')})")
                 continue
 
             logger.info(f"  📰 [{i}/{len(articles)}] {art['title'][:50]}")

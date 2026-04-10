@@ -6,7 +6,7 @@
 import {
     fetchIntel, fetchStats, fetchHotAttacks, fetchTags,
     fetchKeywords, fetchSummary, fetchTranslation,
-    fetchGithubTrending, fetchHotTopics,
+    fetchGithubTrending, fetchHotTopics, fetchSources,
     buildCategories, buildStatsCards,
     buildThreatLevels, colorMap
 } from './data.js';
@@ -23,6 +23,7 @@ import {
 const state = {
     activeCategory: 'all',
     activeSeverity: 'all',   // 🆕 严重等级筛选
+    activeSource: 'all',     // 🆕 情报源筛选
     activeTag: null,
     activeSortBy: 'latest',
     timeFilter: 'all',
@@ -36,6 +37,7 @@ const state = {
     newDataCount: 0,
     lastTotal: 0,
     intelItems: [],
+    sourceList: [],                // 🆕 情报源列表缓存
     trendingPeriod: 'daily',   // 🆕 GitHub Trending 周期
     hotTopicsRange: 'daily',   // 🆕 热点情报周期
 };
@@ -74,6 +76,7 @@ function cacheDom() {
     dom.modalSource = document.getElementById('modalSource');
     dom.modalLink = document.getElementById('modalLink');
     dom.severityFilterBar = document.getElementById('severityFilterBar');
+    dom.sourceFilterBar = document.getElementById('sourceFilterBar');
     dom.logoutBtn = document.getElementById('logoutBtn');
     dom.currentUser = document.getElementById('currentUser');
     // 🆕 GitHub Trending + 热点情报
@@ -88,6 +91,7 @@ function buildIntelParams(page = 1) {
     return {
         category: state.activeCategory,
         severity: state.activeSeverity === 'all' ? undefined : state.activeSeverity,
+        source: state.activeSource === 'all' ? undefined : state.activeSource,
         search: state.searchQuery,
         time_filter: state.timeFilter,
         sort_by: state.activeSortBy,
@@ -99,7 +103,7 @@ function buildIntelParams(page = 1) {
 // ===== 渲染函数 =====
 async function renderAll() {
     // 并行获取所有数据
-    const [stats, hotAttacks, tags, keywords, summary, intelResult, trendingData, hotTopicsData] = await Promise.all([
+    const [stats, hotAttacks, tags, keywords, summary, intelResult, trendingData, hotTopicsData, sourcesData] = await Promise.all([
         fetchStats(state.timeFilter),
         fetchHotAttacks(state.timeFilter),
         fetchTags(state.timeFilter),
@@ -108,6 +112,7 @@ async function renderAll() {
         fetchIntel(buildIntelParams(1)),
         fetchGithubTrending(state.trendingPeriod, 10),
         fetchHotTopics(state.hotTopicsRange, 10),
+        fetchSources(),
     ]);
 
     // 渲染统计卡片
@@ -148,6 +153,12 @@ async function renderAll() {
     // 🆕 渲染热点情报聚合
     renderHotTopics(dom.hotTopicsList, hotTopicsData);
 
+    // 🆕 渲染情报源筛选栏
+    if (sourcesData && sourcesData.length > 0) {
+        state.sourceList = sourcesData;
+        renderSourceFilterBar(sourcesData);
+    }
+
     // 渲染情报流
     state.intelItems = intelResult.items;
     state.totalCount = intelResult.total;
@@ -156,6 +167,26 @@ async function renderAll() {
 
     // 记录当前总数用于检测新数据
     state.lastTotal = stats.total;
+}
+
+function renderSourceFilterBar(sources) {
+    if (!dom.sourceFilterBar || !sources || sources.length === 0) return;
+
+    // 保留"全部"按钮，动态渲染各情报源按钮
+    const allBtn = `<span class="text-[11px] text-gray-500 mr-1">来源筛选:</span>
+        <button class="source-filter-btn ${state.activeSource === 'all' ? 'active' : ''}" data-source="all">
+            <i class="ri-apps-line mr-0.5"></i>全部
+        </button>`;
+
+    const sourceBtns = sources.map(src => {
+        const isActive = state.activeSource === src.source_group;
+        return `<button class="source-filter-btn ${isActive ? 'active' : ''}" data-source="${src.source_group}">
+            <i class="${src.source_icon} mr-0.5"></i>${src.source_group}
+            <span class="source-filter-count">${src.count}</span>
+        </button>`;
+    }).join('');
+
+    dom.sourceFilterBar.innerHTML = allBtn + sourceBtns;
 }
 
 function renderSummaryText(text) {
@@ -444,6 +475,18 @@ function bindEvents() {
         }
     });
 
+    // 🆕 情报源筛选按钮
+    dom.sourceFilterBar.addEventListener('click', (e) => {
+        const btn = e.target.closest('.source-filter-btn');
+        if (btn) {
+            dom.sourceFilterBar.querySelectorAll('.source-filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            state.activeSource = btn.dataset.source;
+            state.currentPage = 1;
+            refreshIntelOnly();
+        }
+    });
+
     // 加载更多
     dom.loadMoreBtn.addEventListener('click', async () => {
         if (dom.loadMoreBtn.disabled) return;
@@ -527,6 +570,44 @@ function bindEvents() {
                 dom.hotTopicsList.innerHTML = '<div class="text-center py-6"><i class="ri-loader-4-line animate-spin text-gray-500 text-xl"></i></div>';
                 const data = await fetchHotTopics(state.hotTopicsRange, 10);
                 renderHotTopics(dom.hotTopicsList, data);
+            }
+        });
+    }
+
+    // 🆕 热点情报详情展开/收起
+    if (dom.hotTopicsList) {
+        dom.hotTopicsList.addEventListener('click', (e) => {
+            // 如果点击的是外部链接，不阻止默认行为
+            if (e.target.closest('a.hot-topic-detail-link')) return;
+
+            const topicItem = e.target.closest('.hot-topic-item');
+            if (!topicItem) return;
+
+            const idx = topicItem.dataset.topicIdx;
+            const detail = document.getElementById(`hotTopicDetail_${idx}`);
+            if (!detail) return;
+
+            const arrow = topicItem.querySelector('.hot-topic-arrow');
+            const isOpen = detail.style.display !== 'none';
+
+            if (isOpen) {
+                detail.style.display = 'none';
+                topicItem.classList.remove('hot-topic-expanded');
+                if (arrow) arrow.style.transform = 'rotate(0deg)';
+            } else {
+                // 先关闭其他已展开的详情
+                dom.hotTopicsList.querySelectorAll('.hot-topic-detail').forEach(d => {
+                    d.style.display = 'none';
+                });
+                dom.hotTopicsList.querySelectorAll('.hot-topic-item').forEach(item => {
+                    item.classList.remove('hot-topic-expanded');
+                    const a = item.querySelector('.hot-topic-arrow');
+                    if (a) a.style.transform = 'rotate(0deg)';
+                });
+
+                detail.style.display = 'block';
+                topicItem.classList.add('hot-topic-expanded');
+                if (arrow) arrow.style.transform = 'rotate(180deg)';
             }
         });
     }

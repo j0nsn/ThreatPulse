@@ -71,8 +71,8 @@ async function apiPost(endpoint, body = {}) {
 
 // ===== 导出的 API 函数 =====
 
-export async function fetchIntel({ category, severity, keyword, search, time_filter, sort_by, page, page_size } = {}) {
-    const data = await apiFetch('/intel', { category, severity, keyword, search, time_filter, sort_by, page, page_size });
+export async function fetchIntel({ category, severity, source, keyword, search, time_filter, sort_by, page, page_size } = {}) {
+    const data = await apiFetch('/intel', { category, severity, source, keyword, search, time_filter, sort_by, page, page_size });
     return data || { total: 0, items: [], page: 1, page_size: 20 };
 }
 
@@ -116,6 +116,12 @@ export async function fetchGithubTrending(period = 'daily', limit = 10) {
 // 🆕 热点情报聚合 API
 export async function fetchHotTopics(time_range = 'daily', limit = 10) {
     const data = await apiFetch('/hot-topics', { time_range, limit });
+    return data || [];
+}
+
+// 🆕 情报源列表 API
+export async function fetchSources() {
+    const data = await apiFetch('/sources');
     return data || [];
 }
 

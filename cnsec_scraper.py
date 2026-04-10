@@ -18,7 +18,7 @@ import hashlib
 import logging
 import requests
 from urllib.parse import quote, urljoin
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from db_cnsec import insert_cnsec_article, article_exists
 from db import check_duplicate_by_summary_cn
@@ -40,6 +40,9 @@ MAX_PAGES_PER_CATEGORY = 2
 
 # 每次爬虫最多采集多少篇文章详情（防止耗时过长）
 MAX_ARTICLES_TOTAL = 60
+
+# 只接收最近 N 天内发布的文章
+MAX_AGE_DAYS = 3
 
 # 请求配置
 REQUEST_TIMEOUT = 30
@@ -384,6 +387,18 @@ def run_scraper():
         # 获取详情
         scrape_article_detail(art)
 
+        # 时间过滤：跳过超过 MAX_AGE_DAYS 天前发布的文章
+        publish_time = art.get("publish_time", "")
+        if publish_time:
+            try:
+                pub_dt = datetime.strptime(publish_time, "%Y-%m-%d %H:%M:%S")
+                cutoff = datetime.now() - timedelta(days=MAX_AGE_DAYS)
+                if pub_dt < cutoff:
+                    logger.info(f"  🕐 跳过旧文章 (发布于 {publish_time}，超过 {MAX_AGE_DAYS} 天)")
+                    continue
+            except ValueError:
+                pass  # 解析失败不过滤
+
         # 分类评级
         classify = classify_article(
             art["title"],
@@ -402,8 +417,8 @@ def run_scraper():
         # 热度 = 浏览量
         heat = art.get("views", 0)
 
-        # 调用 DeepSeek 生成中文摘要
-        ds_content = full_text or art.get("summary", "")
+        # 调用 DeepSeek 生成中文摘要（截断到1000字符节省token）
+        ds_content = (full_text or art.get("summary", ""))[:1000]
         summary_cn = generate_summary(art["title"], ds_content)
         if summary_cn:
             # 用中文摘要做去重检查
